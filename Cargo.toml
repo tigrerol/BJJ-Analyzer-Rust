@@ -1,0 +1,71 @@
+[package]
+name = "bjj-analyzer-rust"
+version = "0.1.0"
+edition = "2021"
+authors = ["TigreRoll"]
+description = "High-performance BJJ Video Analyzer written in Rust"
+license = "MIT"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.40", features = ["full"] }
+futures = "0.3"
+
+# HTTP client for API calls
+reqwest = { version = "0.12", features = ["json", "stream", "multipart"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+
+# Configuration
+clap = { version = "4.5", features = ["derive"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# File system operations
+walkdir = "2.5"
+tempfile = "3.8"
+
+# Date/time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# CPU count detection
+num_cpus = "1.16"
+
+# Optional: Python bindings
+pyo3 = { version = "0.22", features = ["auto-initialize"], optional = true }
+
+# Development dependencies
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+tokio-test = "0.4"
+
+# Features
+[features]
+default = []
+python-bindings = ["pyo3"]
+
+# Binary executables
+[[bin]]
+name = "bjj-analyzer"
+path = "src/main.rs"
+
+[[bin]]
+name = "check-transcription"
+path = "src/bin/check_transcription.rs"
+
+[[bin]]
+name = "quick-bench"
+path = "src/bin/quick_bench.rs"
+
+[profile.release]
+opt-level = 3
+lto = true

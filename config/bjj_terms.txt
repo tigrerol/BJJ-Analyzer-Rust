@@ -1,0 +1,345 @@
+# BJJ Terms Dictionary
+# This file contains Brazilian Jiu-Jitsu terminology for improved transcription accuracy
+# Format: Category headers in [brackets], terms on separate lines, corrections with ->
+
+[Positions]
+Guard
+Open Guard
+Closed Guard
+Half Guard
+Deep Half Guard
+Z-Guard
+Reverse Z-Guard
+K-Guard
+Knee Shield Half Guard
+Butterfly Guard
+Seated Guard
+Standing Guard Pass
+Guard Retention
+Guard Recovery
+Guard Pull
+Turtle
+Sprawl
+Base
+Posture
+Framing
+Grips
+Grip Fighting
+Collar Grip
+Sleeve Grip
+Pistol Grip
+C-Grip
+Monkey Grip
+Gable Grip
+S-Grip
+Seatbelt Grip
+Underhook
+Overhook
+Whizzer
+Crossface
+Connection
+Pressure
+Distance Management
+Angles
+Level Change
+Hip Escape
+Shrimp
+Bridge
+Upa
+Granby Roll
+Technical Stand-up
+Posting
+Clinch
+Pummeling
+Mount
+High Mount
+Low Mount
+S-Mount
+Technical Mount
+Back Mount
+Back Control
+Hooks
+Body Triangle
+Side Control
+Kesa Gatame
+Reverse Kesa Gatame
+North-South
+Knee on Belly
+Twister Side Control
+Headquarters
+HQ
+Leg Drag
+Stack Pass
+Torreando Pass
+Over-Under Pass
+Double Under Pass
+Knee Cut Pass
+Knee Slice Pass
+X-Pass
+Smash Pass
+Pressure Pass
+Folding Pass
+Forced Half Guard Pass
+Spider Guard
+Lasso Guard
+Spider-Lasso Hybrid
+De La Riva Guard
+Reverse De La Riva Guard
+X-Guard
+Single Leg X-Guard
+50/50 Guard
+Ashi Garami
+Outside Ashi Garami
+Inside Sankaku
+Saddle
+Honey Hole
+411
+Lockdown
+Electric Chair
+Donkey Guard
+Rubber Guard
+Williams Guard
+Crab Ride
+Leg Pummeling
+Berimbolo
+Inversion
+Inverted
+
+[Submissions]
+Armbar
+Straight Armbar
+Juji Gatame
+Kimura
+Americana
+Keylock
+Ude Garami
+Omoplata
+Sankaku Garami
+Wrist Lock
+Gogoplata
+Triangle Choke
+Arm Triangle Choke
+D'Arce Choke
+Brabo Choke
+Anaconda Choke
+Peruvian Necktie
+Japanese Necktie
+Guillotine Choke
+High Elbow Guillotine
+Arm-in Guillotine
+Rear Naked Choke
+RNC
+Mata Leão
+Bow and Arrow Choke
+Cross Collar Choke
+Sliding Collar Choke
+Ezekiel Choke
+Sode Guruma Jime
+Clock Choke
+Paper Cutter Choke
+Baseball Bat Choke
+Loop Choke
+North-South Choke
+Von Flue Choke
+Heel Hook
+Inside Heel Hook
+Outside Heel Hook
+Kneebar
+Toe Hold
+Ankle Lock
+Straight Ankle Lock
+Achilles Lock
+Estima Lock
+Calf Crank
+Calf Slicer
+Bicep Slicer
+Tarikoplata
+Baratoplata
+Monoplata
+Mir Lock
+Groin Stretch
+Banana Split
+Crotch Ripper
+
+[Techniques]
+Submission
+Tap
+Tap Out
+Roll
+Spar
+Flow Roll
+Drill
+Positional Sparring
+Specific Training
+Live Training
+Scramble
+Transition
+Reversal
+Sweep
+Counter
+Defense
+Escape
+Pin
+Dominant Position
+Neutral Position
+Bad Position
+Top Position
+Bottom Position
+Inside Position
+Outside Position
+Leverage
+Momentum
+Timing
+Misdirection
+Feint
+Combination
+Body Lock
+Body Lock Pass
+Wrestling Up
+Wall Walking
+Take Down
+Single Leg Takedown
+Double Leg Takedown
+Ankle Pick
+Snap Down
+Arm Drag
+Foot Sweep
+Throw
+Hip Toss
+Off-balancing
+Kuzushi
+
+[Portuguese]
+Guarda
+Guarda Fechada
+Meia Guarda
+Guarda Aranha
+Guarda De La Riva
+Guarda X
+Guarda Borboleta
+Montada
+Cem Quilos
+Joelho na Barriga
+Pegada nas Costas
+Baiana
+Queda
+Raspagem
+Passagem de Guarda
+Estrangulamento
+Mata Leão
+Triângulo
+Americana
+Kimura
+Omoplata
+Chave de Braço
+Chave de Pé
+Chave de Calcanhar
+Chave de Joelho
+Pegada
+Gola
+Manga
+Lapela
+Calça
+Faixa
+Kimono
+Rolamento
+Fuga de Quadril
+Ponte
+Upa
+Berimbolo
+Leg Drag
+Rodado
+Passador
+Guardeiro
+Treino
+Amasso
+Bater
+Deixa rolar
+Puxar para a guarda
+Quedar
+Postura
+Base
+Tatame
+Luta
+Jiu-Jitsu
+Capotagem
+Canelada
+Esgrima
+Cadeado
+Crucifixo
+Mão de Vaca
+Gravata
+
+[Japanese]
+Jiu-Jitsu
+Dojo
+Sensei
+Professor
+Oss
+Gi
+Kimono
+Obi
+Shime
+Jime
+Newaza
+Tachi-waza
+Ukemi
+Nage-waza
+Kesa Gatame
+Kuzure Kesa Gatame
+Ushiro Kesa Gatame
+Kata Gatame
+Juji Gatame
+Ude Garami
+Ude Hishigi
+Ashi Garami
+Hiza Gatame
+Sankaku Jime
+Hadaka Jime
+Okuri Eri Jime
+Kataha Jime
+Sode Guruma Jime
+Tatami
+Randori
+Shiai
+Hajime
+Matte
+Sore made
+Rei
+Kuzushi
+
+# Common Corrections (wrong -> correct)
+coast guard -> closed guard
+clothes guard -> closed guard
+close guard -> closed guard
+butterfly god -> butterfly guard
+spider god -> spider guard
+x god -> x guard
+arm bar -> armbar
+kimora -> kimura
+america -> americana
+triangle joke -> triangle choke
+rear naked joke -> rear naked choke
+jujitsu -> jiu-jitsu
+jiu jitsu -> jiu-jitsu
+gee -> gi
+no gee -> no-gi
+no gi -> no-gi
+matt -> mat
+side mount -> side control
+north south -> north-south
+key lock -> keylock
+de la riva -> de la riva
+delaware -> de la riva
+dela riva -> de la riva
+reverse dela riva -> reverse de la riva
+tornado -> torreando
+bullfighter -> torreando
+knee cut -> knee cut
+knee slice -> knee slice
+50 50 -> 50/50
+fiftyfifty -> 50/50
+fifty fifty -> 50/50
+four eleven -> 411
+mission control -> mission control
+oil check -> oil check

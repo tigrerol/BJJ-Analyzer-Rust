@@ -1,0 +1,99 @@
+[package]
+name = "bjj-analyzer-rust"
+version = "0.1.0"
+edition = "2021"
+authors = ["TigreRoll"]
+description = "High-performance BJJ Video Analyzer written in Rust"
+license = "MIT"
+repository = "https://github.com/tigreroll/bjj-analyzer-rust"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.40", features = ["full"] }
+
+# Video/Audio processing
+ffmpeg-next = { version = "7.0", optional = true }
+opencv = { version = "0.92", default-features = false, features = ["opencv-4"], optional = true }
+
+# Audio processing and analysis
+hound = "3.5"  # WAV file handling
+rubato = "0.15"  # Audio resampling
+
+# HTTP client for API calls
+reqwest = { version = "0.12", features = ["json", "stream"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+
+# Configuration
+config = "0.14"
+clap = { version = "4.5", features = ["derive"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# File system operations
+walkdir = "2.5"
+tempfile = "3.8"
+
+# Performance monitoring
+prometheus = "0.13"
+
+# Date/time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# CPU count detection
+num_cpus = "1.16"
+
+# Optional: Python bindings
+pyo3 = { version = "0.22", features = ["auto-initialize"], optional = true }
+
+# Development dependencies
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+tokio-test = "0.4"
+
+# Features
+[features]
+default = ["ffmpeg"]
+ffmpeg = ["ffmpeg-next"]
+opencv = ["dep:opencv"]
+python-bindings = ["pyo3"]
+gpu-acceleration = []
+benchmark = []
+
+# Python extension module
+[lib]
+name = "bjj_analyzer_rust"
+crate-type = ["cdylib", "rlib"]
+
+# Binary executable
+[[bin]]
+name = "bjj-analyzer"
+path = "src/main.rs"
+
+# Benchmarks
+[[bench]]
+name = "video_processing"
+harness = false
+required-features = ["benchmark"]
+
+[profile.release]
+# Optimize for performance
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[profile.dev]
+# Faster compilation in development
+opt-level = 0
+debug = true

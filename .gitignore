@@ -1,0 +1,43 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+
+# Cargo lock file (uncomment if this is a library)
+# Cargo.lock
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Whisper model files (large binary files)
+/models/*.bin
+
+# Output directories
+/output/
+/cache/
+/logs/
+
+# Temporary files
+temp_*
+test_*
+benchmark_*
+*.tmp
+
+# Environment files
+.env
+.env.local
+
+# Python cache (for integration scripts)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
