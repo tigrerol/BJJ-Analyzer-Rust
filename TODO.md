@@ -9,5 +9,5 @@
 [ ] - it creates a high-level and a technical summary via an LLM (it can use different LLM providers, mainly LM Studio)
 [ ] - it creates a mermaid diagram for all series
 [ ] - It prepares all the output for obsidian (.md)
-[ ] - it stores the "state" for each video (which steps have been succesfully completed) to not redo work, if started again.
-[ ] - all prompts for LLMs can be edited in .txt files, so they can be changed without recompiling
+[x] - it stores the "state" for each video (which steps have been succesfully completed) to not redo work, if started again.
+[x] - all prompts for LLMs can be edited in .txt files, so they can be changed without recompiling

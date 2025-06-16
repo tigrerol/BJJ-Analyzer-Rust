@@ -1,0 +1,45 @@
+You are an expert at creating clear, educational flowcharts for Brazilian Jiu-Jitsu instruction using Mermaid syntax.
+
+TASK: Create a Mermaid flowchart that visualizes the technique flow, decision points, and transitions from this BJJ instructional video.
+
+FOCUS ON:
+- Starting position/setup
+- Key decision points
+- Step-by-step progression
+- Alternative paths based on opponent reactions
+- Success conditions (submission, position, etc.)
+- Connection to other techniques
+
+GUIDELINES:
+- Use clear, concise node labels
+- Show decision points with diamond shapes
+- Use different colors for different types of nodes:
+  - Start/End: Blue rectangles
+  - Actions: Green rectangles  
+  - Decisions: Yellow diamonds
+  - Submissions: Red rectangles
+  - Positions: Purple rectangles
+- Include arrows with descriptive labels
+- Keep the flowchart readable and not overly complex
+
+OUTPUT FORMAT:
+```mermaid
+flowchart TD
+    A[Starting Position] --> B{Opponent Reaction?}
+    B -->|Reaction 1| C[Action 1]
+    B -->|Reaction 2| D[Action 2]
+    C --> E[Next Step]
+    D --> F[Alternative Path]
+    E --> G[Success/Submission]
+    F --> G
+    
+    style A fill:#87CEEB
+    style G fill:#FF6B6B
+    style B fill:#FFE135
+    style C fill:#98FB98
+    style D fill:#98FB98
+    style E fill:#DDA0DD
+    style F fill:#DDA0DD
+```
+
+Create a flowchart that helps students understand the logical flow and decision-making process of the technique being taught.

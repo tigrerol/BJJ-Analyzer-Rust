@@ -225,6 +225,67 @@ pub struct LLMConfig {
     
     /// Path to custom correction prompt file
     pub prompt_file: Option<PathBuf>,
+    
+    /// Prompt configuration for various LLM tasks
+    pub prompts: PromptConfig,
+}
+
+/// Configuration for all LLM prompts
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PromptConfig {
+    /// Base directory for prompt files
+    pub prompt_dir: PathBuf,
+    
+    /// Transcription correction prompt file
+    pub correction_file: String,
+    
+    /// High-level summary prompt file
+    pub summary_high_level_file: String,
+    
+    /// Technical summary prompt file
+    pub summary_technical_file: String,
+    
+    /// Mermaid diagram generation prompt file
+    pub mermaid_flowchart_file: String,
+    
+    /// Whisper transcription prompt template file
+    pub whisper_transcription_file: String,
+}
+
+impl PromptConfig {
+    /// Load prompt content from a specific file
+    pub async fn load_prompt(&self, filename: &str) -> Result<String> {
+        let path = self.prompt_dir.join(filename);
+        match tokio::fs::read_to_string(&path).await {
+            Ok(content) => Ok(content.trim().to_string()),
+            Err(e) => Err(anyhow::anyhow!("Failed to load prompt from {}: {}", path.display(), e))
+        }
+    }
+    
+    /// Load correction prompt
+    pub async fn load_correction_prompt(&self) -> Result<String> {
+        self.load_prompt(&self.correction_file).await
+    }
+    
+    /// Load high-level summary prompt
+    pub async fn load_summary_high_level_prompt(&self) -> Result<String> {
+        self.load_prompt(&self.summary_high_level_file).await
+    }
+    
+    /// Load technical summary prompt
+    pub async fn load_summary_technical_prompt(&self) -> Result<String> {
+        self.load_prompt(&self.summary_technical_file).await
+    }
+    
+    /// Load mermaid flowchart prompt
+    pub async fn load_mermaid_flowchart_prompt(&self) -> Result<String> {
+        self.load_prompt(&self.mermaid_flowchart_file).await
+    }
+    
+    /// Load whisper transcription prompt
+    pub async fn load_whisper_transcription_prompt(&self) -> Result<String> {
+        self.load_prompt(&self.whisper_transcription_file).await
+    }
 }
 
 impl Config {
@@ -404,6 +465,14 @@ impl Default for Config {
                 temperature: 0.1, // Low temperature for consistent corrections
                 timeout_seconds: 120, // 2 minutes timeout
                 prompt_file: Some(PathBuf::from("config/prompts/correction.txt")),
+                prompts: PromptConfig {
+                    prompt_dir: PathBuf::from("config/prompts"),
+                    correction_file: "correction.txt".to_string(),
+                    summary_high_level_file: "summary_high_level.txt".to_string(),
+                    summary_technical_file: "summary_technical.txt".to_string(),
+                    mermaid_flowchart_file: "mermaid_flowchart.txt".to_string(),
+                    whisper_transcription_file: "whisper_transcription.txt".to_string(),
+                },
             },
             output: OutputConfig {
                 base_dir: PathBuf::from("./output"),

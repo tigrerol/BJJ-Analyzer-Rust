@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tracing::{info, warn};
 
 /// BJJ term categories for better organization
@@ -26,6 +26,9 @@ pub struct BJJDictionary {
     
     /// Prompt template for Whisper
     prompt_template: String,
+    
+    /// Path to external prompt template file
+    prompt_file_path: Option<PathBuf>,
 }
 
 impl BJJDictionary {
@@ -35,6 +38,7 @@ impl BJJDictionary {
             terms: HashMap::new(),
             corrections: HashMap::new(),
             prompt_template: Self::default_prompt_template(),
+            prompt_file_path: None,
         };
         
         dictionary.load_default_terms();
@@ -49,6 +53,30 @@ impl BJJDictionary {
         dictionary.parse_terms_file(&content)?;
         info!("📚 Loaded BJJ dictionary from: {}", path.as_ref().display());
         Ok(dictionary)
+    }
+    
+    /// Create dictionary with external prompt file
+    pub async fn with_prompt_file<P: AsRef<Path>>(prompt_path: P) -> Result<Self> {
+        let mut dictionary = Self::new();
+        dictionary.load_prompt_from_file(&prompt_path).await?;
+        Ok(dictionary)
+    }
+    
+    /// Load prompt template from external file
+    pub async fn load_prompt_from_file<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
+        match tokio::fs::read_to_string(path.as_ref()).await {
+            Ok(content) => {
+                self.prompt_template = content.trim().to_string();
+                self.prompt_file_path = Some(path.as_ref().to_path_buf());
+                info!("📝 Loaded BJJ prompt template from: {}", path.as_ref().display());
+            }
+            Err(e) => {
+                warn!("Failed to load prompt file {}: {}, using default", path.as_ref().display(), e);
+                self.prompt_template = Self::default_prompt_template();
+                self.prompt_file_path = None;
+            }
+        }
+        Ok(())
     }
     
     /// Generate BJJ-specific prompt for Whisper

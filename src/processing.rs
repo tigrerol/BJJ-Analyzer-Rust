@@ -75,7 +75,7 @@ impl BatchProcessor {
         info!("🔧 Initializing BatchProcessor with {} workers", max_workers);
 
         // Load BJJ dictionary
-        let bjj_dictionary = if let Some(ref bjj_file) = config.transcription.bjj_terms_file {
+        let mut bjj_dictionary = if let Some(ref bjj_file) = config.transcription.bjj_terms_file {
             if bjj_file.exists() {
                 BJJDictionary::from_file(bjj_file).await?
             } else {
@@ -85,6 +85,14 @@ impl BatchProcessor {
         } else {
             BJJDictionary::new()
         };
+        
+        // Load external prompt template if configured
+        let whisper_prompt_path = config.llm.prompts.prompt_dir.join(&config.llm.prompts.whisper_transcription_file);
+        if whisper_prompt_path.exists() {
+            bjj_dictionary.load_prompt_from_file(&whisper_prompt_path).await?;
+        } else {
+            info!("🔔 Whisper prompt file not found: {}, using default template", whisper_prompt_path.display());
+        }
 
         // Initialize Whisper transcriber
         let whisper_transcriber = WhisperTranscriber::new(
