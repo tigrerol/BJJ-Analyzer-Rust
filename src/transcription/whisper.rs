@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tokio::process::Command;
+use tokio::io::{AsyncBufReadExt, BufReader};
+use std::process::Stdio;
 use tracing::{info, warn, debug, error};
 
 use crate::audio::AudioInfo;
@@ -99,6 +101,12 @@ impl WhisperTranscriber {
         info!("🎤 Starting Whisper transcription for: {}", audio_info.path.display());
         info!("📊 Audio info: {}Hz, {} channels, {:?} duration", 
               audio_info.sample_rate, audio_info.channels, audio_info.duration);
+        info!("📁 File size: {:.1} MB", audio_info.file_size as f64 / 1_000_000.0);
+        info!("⚙️  Model: {}, GPU: {}", self.model, self.use_gpu);
+        
+        // Estimate processing time
+        let estimated_time = self.estimate_processing_time(audio_info.duration);
+        info!("⏱️  Estimated processing time: {:.1} minutes", estimated_time.as_secs_f64() / 60.0);
         
         // Generate BJJ-specific prompt
         let bjj_prompt = self.bjj_dictionary.generate_prompt();
@@ -109,17 +117,22 @@ impl WhisperTranscriber {
             .unwrap_or_default()
             .to_string_lossy();
         
-        let temp_dir = output_dir.join("temp_whisper");
+        let temp_dir = output_dir.join(format!("temp_whisper_{}", base_name));
+        info!("📁 Creating temp directory: {}", temp_dir.display());
         tokio::fs::create_dir_all(&temp_dir).await?;
         
         // Run Whisper command
+        info!("🚀 Starting Whisper command execution...");
         let whisper_result = self.run_whisper_command(
             &audio_info.path,
             &temp_dir,
             &bjj_prompt,
         ).await?;
         
+        info!("✅ Whisper command completed successfully");
+        
         // Parse results and create SRT
+        info!("🔄 Processing Whisper output and creating files for: {}", base_name);
         let transcription_result = self.process_whisper_output(
             whisper_result,
             &base_name,
@@ -130,11 +143,12 @@ impl WhisperTranscriber {
         
         // Cleanup temporary files
         if self.config.timeout > 0 {
+            info!("🧹 Cleaning up temporary files...");
             let _ = tokio::fs::remove_dir_all(&temp_dir).await;
         }
         
-        info!("✅ Transcription completed in {:?}: {} characters, {} segments",
-              transcription_result.processing_time,
+        info!("🎉 Transcription completed in {:.1}s: {} characters, {} segments",
+              transcription_result.processing_time.as_secs_f64(),
               transcription_result.text.len(),
               transcription_result.segments.len());
         
@@ -155,17 +169,23 @@ impl WhisperTranscriber {
             ("whisper", false),     // Python OpenAI Whisper (fallback)
         ];
         
+        info!("🔍 Detecting available Whisper backends...");
+        
         for (cmd_name, is_cpp) in &backends {
+            info!("🔍 Checking for {} command...", cmd_name);
             if Self::check_command_available(cmd_name).await {
-                info!("🚀 Using {} backend for transcription", cmd_name);
+                info!("✅ Found {} backend, using it for transcription", cmd_name);
                 return if *is_cpp {
                     self.run_whisper_cpp_command(audio_path, output_dir, bjj_prompt).await
                 } else {
                     self.run_python_whisper_command(audio_path, output_dir, bjj_prompt).await
                 };
+            } else {
+                info!("❌ {} not available", cmd_name);
             }
         }
         
+        error!("❌ No Whisper backend found!");
         Err(anyhow!("No Whisper backend found. Please install whisper.cpp or openai-whisper"))
     }
     
@@ -193,32 +213,47 @@ impl WhisperTranscriber {
         let output_file = output_dir.join(&base_name);
         
         cmd.arg("-f").arg(audio_path.to_str().unwrap())
-            .arg("--output-json") // JSON output
-            .arg("--output-srt") // Also generate SRT
-            .arg("--output-file").arg(output_file.to_str().unwrap())
+            .arg("-oj") // JSON output (correct flag)
+            .arg("-osrt") // Also generate SRT (correct flag)
+            .arg("-of").arg(output_file.to_str().unwrap()) // Output file
             .arg("-t").arg("4") // 4 threads
-            .arg("--temperature").arg("0.0");
+            .arg("-tp").arg("0.0"); // Temperature (correct flag)
         
         // Try to use base model (common default)
         if cmd_name == "whisper-cli" {
             // For homebrew whisper-cli, try default model location
             let model_paths = [
                 &format!("models/ggml-{}.bin", self.model),
+                "models/ggml-tiny.bin", // Fallback to tiny model
+                "models/ggml-tiny-real.bin", // Another fallback
                 "/usr/local/share/whisper-cpp/ggml-base.bin",
                 "/opt/homebrew/share/whisper-cpp/ggml-base.bin", 
                 &format!("/usr/local/share/whisper-cpp/ggml-{}.bin", self.model),
                 "/usr/local/Cellar/whisper-cpp/1.7.5/share/whisper-cpp/for-tests-ggml-tiny.bin",
             ];
             
+            info!("🔍 Looking for Whisper model files...");
+            let mut model_found = false;
             for model_path in &model_paths {
+                info!("🔍 Checking: {}", model_path);
                 if std::path::Path::new(model_path).exists() {
+                    let metadata = std::fs::metadata(model_path).unwrap_or_else(|_| std::fs::metadata(".").unwrap());
+                    info!("✅ Found model: {} ({:.1} MB)", model_path, metadata.len() as f64 / 1_000_000.0);
                     cmd.arg("-m").arg(model_path);
-                    info!("🎯 Using Whisper model: {}", model_path);
+                    model_found = true;
                     break;
+                } else {
+                    info!("❌ Not found: {}", model_path);
                 }
             }
+            
+            if !model_found {
+                warn!("⚠️  No model found, using default");
+            }
         } else {
-            cmd.arg("-m").arg(&format!("models/ggml-{}.bin", self.model));
+            let model_path = format!("models/ggml-{}.bin", self.model);
+            info!("🎯 Using model path: {}", model_path);
+            cmd.arg("-m").arg(&model_path);
         }
         
         // BJJ-specific prompt
@@ -233,6 +268,10 @@ impl WhisperTranscriber {
         
         info!("🚀 Running {}: {} model on {}", 
               cmd_name, self.model, audio_path.display());
+        info!("🔧 Timeout set to: {} seconds", self.config.timeout);
+        
+        // Debug: Log the exact command being executed
+        debug!("Executing command: {:?}", cmd);
         
         self.execute_command_and_parse(cmd, output_dir, "whisper.cpp").await
     }
@@ -289,28 +328,167 @@ impl WhisperTranscriber {
     ) -> Result<WhisperOutput> {
         // Execute command with timeout
         let timeout_duration = Duration::from_secs(self.config.timeout as u64);
-        let output = tokio::time::timeout(timeout_duration, cmd.output()).await??;
+        let start_time = std::time::Instant::now();
+        
+        info!("⚡ Executing {} command...", backend_name);
+        info!("⏳ Timeout: {} seconds", self.config.timeout);
+        
+        // Set up streaming for real-time progress logging
+        cmd.stdout(Stdio::piped())
+           .stderr(Stdio::piped());
+        
+        let mut child = match cmd.spawn() {
+            Ok(child) => child,
+            Err(e) => {
+                error!("❌ Failed to spawn {} command: {}", backend_name, e);
+                return Err(anyhow!("Failed to spawn {} command: {}", backend_name, e));
+            }
+        };
+        
+        // Capture and log stderr in real-time (whisper progress goes to stderr)
+        let stderr = child.stderr.take().unwrap();
+        let stderr_reader = BufReader::new(stderr);
+        let mut stderr_lines = stderr_reader.lines();
+        
+        // Capture stdout for potential error messages
+        let stdout = child.stdout.take().unwrap();
+        let stdout_reader = BufReader::new(stdout);
+        let mut stdout_lines = stdout_reader.lines();
+        
+        // Track progress and collect output
+        let mut last_progress_time = std::time::Instant::now();
+        let progress_interval = Duration::from_secs(30); // Log progress every 30 seconds
+        
+        let output = match tokio::time::timeout(timeout_duration, async {
+            loop {
+                tokio::select! {
+                    // Process stderr lines (whisper progress)
+                    line_result = stderr_lines.next_line() => {
+                        match line_result {
+                            Ok(Some(line)) => {
+                                // Log whisper progress every 30 seconds or on key messages
+                                let now = std::time::Instant::now();
+                                if now.duration_since(last_progress_time) > progress_interval 
+                                   || line.contains("progress") 
+                                   || line.contains("processing") 
+                                   || line.contains("%") {
+                                    
+                                    if !line.trim().is_empty() {
+                                        info!("🎙️  Whisper: {}", line.trim());
+                                        last_progress_time = now;
+                                    }
+                                } else {
+                                    // Still log at debug level for full details
+                                    debug!("Whisper stderr: {}", line);
+                                }
+                            }
+                            Ok(None) => {
+                                // stderr closed
+                                debug!("Whisper stderr stream closed");
+                            }
+                            Err(e) => {
+                                warn!("Error reading whisper stderr: {}", e);
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Process stdout lines (potential error messages)
+                    line_result = stdout_lines.next_line() => {
+                        match line_result {
+                            Ok(Some(line)) => {
+                                if !line.trim().is_empty() {
+                                    debug!("Whisper stdout: {}", line);
+                                }
+                            }
+                            Ok(None) => {
+                                // stdout closed
+                                debug!("Whisper stdout stream closed");
+                            }
+                            Err(e) => {
+                                warn!("Error reading whisper stdout: {}", e);
+                            }
+                        }
+                    }
+                    
+                    // Check if process has finished
+                    status = child.wait() => {
+                        match status {
+                            Ok(exit_status) => {
+                                let elapsed = start_time.elapsed();
+                                if exit_status.success() {
+                                    info!("✅ {} command completed successfully in {:.1}s", backend_name, elapsed.as_secs_f64());
+                                } else {
+                                    error!("❌ {} command failed with exit code: {}", backend_name, exit_status);
+                                }
+                                
+                                // Create a fake Output struct since we consumed the streams
+                                return Ok(std::process::Output {
+                                    status: exit_status,
+                                    stdout: Vec::new(), // We consumed this via streaming
+                                    stderr: Vec::new(), // We consumed this via streaming
+                                });
+                            }
+                            Err(e) => {
+                                error!("❌ {} command execution failed: {}", backend_name, e);
+                                return Err(anyhow!("{} command execution error: {}", backend_name, e));
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // This shouldn't be reached, but just in case
+            Err(anyhow!("Unexpected end of whisper command processing"))
+        }).await {
+            Ok(result) => result?,
+            Err(_) => {
+                let elapsed = start_time.elapsed();
+                error!("⏰ {} command timed out after {:.1}s (limit: {}s)", 
+                       backend_name, elapsed.as_secs_f64(), self.config.timeout);
+                       
+                // Kill the child process
+                let _ = child.kill().await;
+                return Err(anyhow!("{} command timed out after {} seconds", backend_name, self.config.timeout));
+            }
+        };
         
         if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            error!("{} command failed: {}", backend_name, stderr);
-            return Err(anyhow!("{} transcription failed: {}", backend_name, stderr));
+            error!("❌ {} command failed with exit code: {}", backend_name, output.status);
+            return Err(anyhow!("{} transcription failed with exit code: {}", backend_name, output.status));
         }
         
-        // Parse JSON output
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        debug!("{} stdout: {}", backend_name, stdout);
-        
         // Find the JSON output file
+        info!("🔍 Looking for JSON output files in: {}", output_dir.display());
         let json_files = self.find_whisper_output_files(output_dir, "json").await?;
+        
         if json_files.is_empty() {
+            error!("❌ No {} JSON output found in: {}", backend_name, output_dir.display());
+            // List all files in output directory for debugging
+            if let Ok(mut entries) = tokio::fs::read_dir(output_dir).await {
+                info!("📁 Files in output directory:");
+                while let Some(entry) = entries.next_entry().await.unwrap_or(None) {
+                    info!("   - {}", entry.file_name().to_string_lossy());
+                }
+            }
             return Err(anyhow!("No {} JSON output found", backend_name));
         }
         
+        info!("✅ Found JSON output: {}", json_files[0].display());
         let json_content = tokio::fs::read_to_string(&json_files[0]).await?;
-        let whisper_data: WhisperOutput = serde_json::from_str(&json_content)?;
+        info!("📊 JSON content size: {} bytes", json_content.len());
         
-        Ok(whisper_data)
+        match serde_json::from_str::<WhisperOutput>(&json_content) {
+            Ok(whisper_data) => {
+                info!("✅ Successfully parsed JSON output");
+                Ok(whisper_data)
+            }
+            Err(e) => {
+                error!("❌ Failed to parse JSON output: {}", e);
+                error!("📝 JSON content preview: {}", &json_content[..json_content.len().min(500)]);
+                Err(anyhow!("Failed to parse {} JSON output: {}", backend_name, e))
+            }
+        }
     }
     
     /// Check if a command is available
@@ -332,30 +510,111 @@ impl WhisperTranscriber {
         bjj_prompt: String,
         processing_time: Duration,
     ) -> Result<TranscriptionResult> {
-        // Convert Whisper segments to our format
-        let segments: Vec<TranscriptionSegment> = whisper_output.segments
-            .into_iter()
-            .enumerate()
-            .map(|(i, seg)| TranscriptionSegment {
-                id: i as u32,
-                start: seg.start,
-                end: seg.end,
-                text: seg.text.trim().to_string(),
-                confidence: seg.avg_logprob.map(|p| (p + 1.0) / 2.0), // Normalize to 0-1
-                avg_logprob: seg.avg_logprob,
-                no_speech_prob: seg.no_speech_prob,
-            })
-            .collect();
+        // Handle multiple whisper.cpp JSON formats
+        let (segments, full_text, language) = if !whisper_output.transcription.is_empty() {
+            info!("📊 Using new whisper.cpp JSON format with {} transcription segments", whisper_output.transcription.len());
+            
+            // New format: use transcription array
+            let segments: Vec<TranscriptionSegment> = whisper_output.transcription
+                .into_iter()
+                .enumerate()
+                .map(|(i, seg)| {
+                    // Parse timestamp "00:01:23,456" format to seconds
+                    let start_seconds = self.parse_timestamp(&seg.timestamps.from).unwrap_or(0.0);
+                    let end_seconds = self.parse_timestamp(&seg.timestamps.to).unwrap_or(0.0);
+                    
+                    TranscriptionSegment {
+                        id: i as u32,
+                        start: start_seconds,
+                        end: end_seconds,
+                        text: seg.text.trim().to_string(),
+                        confidence: None, // Not available in new format
+                        avg_logprob: None,
+                        no_speech_prob: None,
+                    }
+                })
+                .collect();
+            
+            // Build full text from segments
+            let full_text = segments.iter()
+                .map(|seg| seg.text.clone())
+                .collect::<Vec<_>>()
+                .join(" ");
+            
+            let language = whisper_output.result
+                .as_ref()
+                .map(|r| r.language.clone())
+                .or(whisper_output.language)
+                .unwrap_or_else(|| "en".to_string());
+            
+            (segments, full_text, language)
+        } else if let Some(result) = whisper_output.result {
+            info!("📊 Using result-based whisper JSON format with {} segments", result.segments.len());
+            
+            // Result-based format: use result.segments array
+            let segments: Vec<TranscriptionSegment> = result.segments
+                .into_iter()
+                .enumerate()
+                .map(|(i, seg)| TranscriptionSegment {
+                    id: i as u32,
+                    start: seg.start,
+                    end: seg.end,
+                    text: seg.text.trim().to_string(),
+                    confidence: seg.avg_logprob.map(|p| (p + 1.0) / 2.0), // Normalize to 0-1
+                    avg_logprob: seg.avg_logprob,
+                    no_speech_prob: seg.no_speech_prob,
+                })
+                .collect();
+            
+            let full_text = result.text.unwrap_or_else(|| {
+                segments.iter()
+                    .map(|seg| seg.text.clone())
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            });
+            
+            let language = result.language;
+            
+            (segments, full_text, language)
+        } else {
+            info!("📊 Using legacy whisper JSON format with {} segments", whisper_output.segments.len());
+            
+            // Legacy format: use segments array
+            let segments: Vec<TranscriptionSegment> = whisper_output.segments
+                .into_iter()
+                .enumerate()
+                .map(|(i, seg)| TranscriptionSegment {
+                    id: i as u32,
+                    start: seg.start,
+                    end: seg.end,
+                    text: seg.text.trim().to_string(),
+                    confidence: seg.avg_logprob.map(|p| (p + 1.0) / 2.0), // Normalize to 0-1
+                    avg_logprob: seg.avg_logprob,
+                    no_speech_prob: seg.no_speech_prob,
+                })
+                .collect();
+            
+            let full_text = whisper_output.text.unwrap_or_else(|| {
+                segments.iter()
+                    .map(|seg| seg.text.clone())
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            });
+            
+            let language = whisper_output.language.unwrap_or_else(|| "en".to_string());
+            
+            (segments, full_text, language)
+        };
         
         // Generate SRT file
         let srt_path = self.generate_srt_file(&segments, base_name, output_dir).await?;
         
         // Save text file
-        let text_path = self.save_text_file(&whisper_output.text, base_name, output_dir).await?;
+        let text_path = self.save_text_file(&full_text, base_name, output_dir).await?;
         
         Ok(TranscriptionResult {
-            text: whisper_output.text,
-            language: Some(whisper_output.language),
+            text: full_text,
+            language: Some(language),
             segments,
             srt_path: Some(srt_path),
             text_path: Some(text_path),
@@ -363,6 +622,29 @@ impl WhisperTranscriber {
             model_used: self.model.clone(),
             bjj_prompt: Some(bjj_prompt),
         })
+    }
+    
+    /// Parse timestamp in "HH:MM:SS,mmm" format to seconds
+    fn parse_timestamp(&self, timestamp: &str) -> Result<f64> {
+        // Format: "00:01:23,456" -> 83.456 seconds
+        let parts: Vec<&str> = timestamp.split(',').collect();
+        if parts.len() != 2 {
+            return Err(anyhow!("Invalid timestamp format: {}", timestamp));
+        }
+        
+        let time_part = parts[0];
+        let milliseconds: f64 = parts[1].parse::<f64>()? / 1000.0;
+        
+        let time_components: Vec<&str> = time_part.split(':').collect();
+        if time_components.len() != 3 {
+            return Err(anyhow!("Invalid time format: {}", time_part));
+        }
+        
+        let hours: f64 = time_components[0].parse()?;
+        let minutes: f64 = time_components[1].parse()?;
+        let seconds: f64 = time_components[2].parse()?;
+        
+        Ok(hours * 3600.0 + minutes * 60.0 + seconds + milliseconds)
     }
     
     /// Generate SRT file from segments
@@ -497,12 +779,47 @@ impl WhisperTranscriber {
     }
 }
 
-/// Whisper JSON output format
+/// Whisper JSON output format (new format)
 #[derive(Debug, Clone, Deserialize)]
 struct WhisperOutput {
-    text: String,
-    language: String,
+    #[serde(default)]
+    text: Option<String>,
+    #[serde(default)]
+    language: Option<String>,
+    #[serde(default)]
     segments: Vec<WhisperSegment>,
+    #[serde(default)]
+    transcription: Vec<WhisperTranscriptionSegment>,
+    #[serde(default)]
+    result: Option<WhisperResult>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct WhisperResult {
+    language: String,
+    #[serde(default)]
+    text: Option<String>,
+    #[serde(default)]
+    segments: Vec<WhisperSegment>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct WhisperTranscriptionSegment {
+    timestamps: WhisperTimestamps,
+    offsets: WhisperOffsets,
+    text: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct WhisperTimestamps {
+    from: String,
+    to: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct WhisperOffsets {
+    from: u64,
+    to: u64,
 }
 
 #[derive(Debug, Clone, Deserialize)]

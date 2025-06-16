@@ -10,6 +10,8 @@ pub mod config;
 pub mod api;
 pub mod bjj;
 pub mod transcription;
+pub mod llm;
+pub mod state;
 
 #[cfg(feature = "python-bindings")]
 pub mod python_bridge;
@@ -21,6 +23,9 @@ pub use crate::video::{VideoProcessor, VideoInfo};
 pub use crate::audio::{AudioExtractor, AudioInfo};
 pub use crate::bjj::{BJJDictionary, BJJTermCategory};
 pub use crate::transcription::{WhisperTranscriber, TranscriptionResult, SRTGenerator};
+pub use crate::llm::{LLMConfig, LLMProvider};
+pub use crate::llm::correction::TranscriptionCorrector;
+pub use crate::state::{StateManager, VideoProcessingState, ProcessingStage};
 
 // Re-export Python bindings if feature is enabled
 #[cfg(feature = "python-bindings")]

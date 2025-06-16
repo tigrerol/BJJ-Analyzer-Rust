@@ -14,6 +14,9 @@ pub struct Config {
     /// Transcription service settings
     pub transcription: TranscriptionConfig,
     
+    /// LLM correction settings
+    pub llm: LLMConfig,
+    
     /// Output and storage settings
     pub output: OutputConfig,
     
@@ -185,6 +188,45 @@ pub struct PerformanceConfig {
     pub cache_ttl: u32,
 }
 
+/// LLM provider types
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum LLMProvider {
+    LMStudio,
+    Gemini,
+    OpenAI,
+}
+
+/// LLM configuration for transcription correction
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LLMConfig {
+    /// Enable LLM-based transcription correction
+    pub enable_correction: bool,
+    
+    /// LLM provider to use
+    pub provider: LLMProvider,
+    
+    /// API endpoint (for LMStudio and custom providers)
+    pub endpoint: Option<String>,
+    
+    /// API key (for cloud providers)
+    pub api_key: Option<String>,
+    
+    /// Model to use
+    pub model: String,
+    
+    /// Maximum tokens to generate
+    pub max_tokens: u32,
+    
+    /// Temperature for generation (0.0 = deterministic)
+    pub temperature: f32,
+    
+    /// Request timeout in seconds
+    pub timeout_seconds: u64,
+    
+    /// Path to custom correction prompt file
+    pub prompt_file: Option<PathBuf>,
+}
+
 impl Config {
     /// Load configuration from file
     pub fn load() -> Result<Self> {
@@ -343,7 +385,7 @@ impl Default for Config {
                 language: None,
                 auto_detect_language: true,
                 max_retries: 3,
-                timeout: 300, // 5 minutes
+                timeout: 3600, // 60 minutes for large files
                 use_bjj_prompts: true,
                 bjj_terms_file: Some(PathBuf::from("config/bjj_terms.txt")),
                 output_formats: vec![TranscriptionFormat::SRT, TranscriptionFormat::Text],
@@ -351,6 +393,17 @@ impl Default for Config {
                 temperature: 0.0,
                 best_of: 3,
                 beam_size: 5,
+            },
+            llm: LLMConfig {
+                enable_correction: true,
+                provider: LLMProvider::LMStudio,
+                endpoint: Some("http://localhost:1234/v1/chat/completions".to_string()),
+                api_key: None,
+                model: "local-model".to_string(),
+                max_tokens: 8192, // Set to maximum for most models
+                temperature: 0.1, // Low temperature for consistent corrections
+                timeout_seconds: 120, // 2 minutes timeout
+                prompt_file: Some(PathBuf::from("config/prompts/correction.txt")),
             },
             output: OutputConfig {
                 base_dir: PathBuf::from("./output"),

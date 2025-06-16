@@ -11,6 +11,7 @@ use crate::video::{VideoProcessor, VideoInfo};
 use crate::audio::{AudioExtractor, AudioInfo};
 use crate::bjj::BJJDictionary;
 use crate::transcription::{WhisperTranscriber, TranscriptionResult};
+use crate::state::{StateManager, ProcessingStage as StateProcessingStage};
 
 /// Processing result for a single video
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -53,6 +54,7 @@ pub enum ProcessingStage {
     AudioEnhancement,
     TranscriptionPrep,
     Transcription,
+    LLMCorrection,
     TranscriptionPost,
     Completed,
 }
@@ -94,6 +96,8 @@ impl BatchProcessor {
               bjj_dictionary.get_stats().total_terms,
               bjj_dictionary.get_stats().total_corrections);
 
+        // State manager will be initialized per video directory
+
         Ok(Self {
             config,
             video_processor: VideoProcessor::new(),
@@ -116,6 +120,11 @@ impl BatchProcessor {
         info!("🚀 Starting batch processing...");
         info!("📁 Input: {}", input_dir.display());
         info!("📂 Output: {}", output_dir.display());
+
+        // Initialize state manager tied to input video directory
+        let state_dir = input_dir.join(".bjj_analyzer_state");
+        let state_manager = StateManager::new(state_dir.clone()).await?;
+        info!("💾 State directory: {}", state_dir.display());
 
         // Create output directory structure
         tokio::fs::create_dir_all(&output_dir).await?;
@@ -140,7 +149,7 @@ impl BatchProcessor {
         info!("📹 Found {} videos to process", video_paths.len());
 
         // Process videos in parallel with concurrency control
-        let results = self.process_videos_parallel(video_paths, &audio_dir).await?;
+        let results = self.process_videos_parallel(video_paths, &audio_dir, state_manager).await?;
 
         let total_time = start_time.elapsed();
         let successful = results.iter().filter(|r| matches!(r.status, ProcessingStatus::Completed)).count();
@@ -169,13 +178,14 @@ impl BatchProcessor {
         &self,
         video_paths: Vec<PathBuf>,
         output_dir: &Path,
+        state_manager: StateManager,
     ) -> Result<Vec<VideoProcessingResult>> {
         let (tx, mut rx) = mpsc::channel(self.max_concurrent);
         let total_videos = video_paths.len();
 
         // Spawn tasks for each video
         for (index, video_path) in video_paths.into_iter().enumerate() {
-            let processor = self.clone_processor_state();
+            let processor = self.clone_processor_state(state_manager.clone());
             let output_dir = output_dir.to_path_buf();
             let tx = tx.clone();
             let semaphore = Arc::clone(&self.worker_semaphore);
@@ -226,127 +236,15 @@ impl BatchProcessor {
         Ok(results)
     }
 
-    /// Process a single video through the complete pipeline
-    async fn process_single_video(
-        &self,
-        video_path: &Path,
-        output_dir: &Path,
-    ) -> Result<VideoProcessingResult> {
-        let start_time = Instant::now();
-        let mut stages_completed = Vec::new();
-        let mut result = VideoProcessingResult {
-            video_info: VideoInfo {
-                path: video_path.to_path_buf(),
-                filename: video_path.file_name().unwrap().to_string_lossy().to_string(),
-                duration: Duration::from_secs(0),
-                width: 0,
-                height: 0,
-                fps: 0.0,
-                format: String::new(),
-                file_size: 0,
-                audio_streams: Vec::new(),
-            },
-            audio_info: None,
-            transcription_result: None,
-            srt_path: None,
-            text_path: None,
-            processing_time: Duration::from_secs(0),
-            status: ProcessingStatus::InProgress,
-            error_message: None,
-            stages_completed: Vec::new(),
-        };
-
-        // Stage 1: Video Analysis
-        debug!("📊 Analyzing video: {}", video_path.display());
-        match self.video_processor.get_video_info(video_path).await {
-            Ok(video_info) => {
-                result.video_info = video_info;
-                stages_completed.push(ProcessingStage::VideoAnalysis);
-            }
-            Err(e) => {
-                result.status = ProcessingStatus::Failed;
-                result.error_message = Some(format!("Video analysis failed: {}", e));
-                result.processing_time = start_time.elapsed();
-                result.stages_completed = stages_completed;
-                return Ok(result);
-            }
-        }
-
-        // Stage 2: Audio Extraction
-        debug!("🎵 Extracting audio from: {}", result.video_info.filename);
-        match self.audio_extractor.extract_for_transcription(video_path, output_dir).await {
-            Ok(audio_info) => {
-                result.audio_info = Some(audio_info);
-                stages_completed.push(ProcessingStage::AudioExtraction);
-            }
-            Err(e) => {
-                warn!("Audio extraction failed for {}: {}", result.video_info.filename, e);
-                // Continue processing even if audio extraction fails
-                stages_completed.push(ProcessingStage::AudioExtraction);
-            }
-        }
-
-        // Stage 3: Audio Enhancement (if audio was extracted successfully)
-        if let Some(ref audio_info) = result.audio_info {
-            let enhanced_path = output_dir.join(format!("{}_enhanced.wav", 
-                video_path.file_stem().unwrap().to_string_lossy()));
-            
-            debug!("🔧 Enhancing audio quality: {}", audio_info.path.display());
-            match self.audio_extractor.enhance_audio(audio_info, &enhanced_path).await {
-                Ok(enhanced_audio) => {
-                    result.audio_info = Some(enhanced_audio);
-                    stages_completed.push(ProcessingStage::AudioEnhancement);
-                }
-                Err(e) => {
-                    debug!("Audio enhancement failed (using original): {}", e);
-                    // Use original audio if enhancement fails
-                    stages_completed.push(ProcessingStage::AudioEnhancement);
-                }
-            }
-        }
-
-        // Stage 4: Transcription with Whisper and BJJ prompts
-        if let Some(ref audio_info) = result.audio_info {
-            debug!("🎤 Starting Whisper transcription: {}", audio_info.path.display());
-            
-            match self.whisper_transcriber.transcribe_audio(audio_info, output_dir).await {
-                Ok(transcription_result) => {
-                    // Store transcription results
-                    result.srt_path = transcription_result.srt_path.clone();
-                    result.text_path = transcription_result.text_path.clone();
-                    result.transcription_result = Some(transcription_result);
-                    
-                    stages_completed.push(ProcessingStage::Transcription);
-                    
-                    info!("✅ Transcription completed for {}: {} characters", 
-                          result.video_info.filename,
-                          result.transcription_result.as_ref().unwrap().text.len());
-                }
-                Err(e) => {
-                    warn!("⚠️ Transcription failed for {}: {}", result.video_info.filename, e);
-                    // Continue processing even if transcription fails
-                    stages_completed.push(ProcessingStage::Transcription);
-                }
-            }
-        }
-
-        // Mark as completed
-        stages_completed.push(ProcessingStage::Completed);
-        result.status = ProcessingStatus::Completed;
-        result.processing_time = start_time.elapsed();
-        result.stages_completed = stages_completed;
-
-        Ok(result)
-    }
-
     /// Create a lightweight clone of processor state for parallel processing
-    fn clone_processor_state(&self) -> ProcessorState {
+    fn clone_processor_state(&self, state_manager: StateManager) -> ProcessorState {
         ProcessorState {
             config: self.config.clone(),
             video_processor: VideoProcessor::new(),
             audio_extractor: AudioExtractor::new(),
             whisper_transcriber: self.whisper_transcriber.clone(),
             bjj_dictionary: self.bjj_dictionary.clone(),
+            state_manager,
         }
     }
 
@@ -367,6 +265,7 @@ struct ProcessorState {
     audio_extractor: AudioExtractor,
     whisper_transcriber: WhisperTranscriber,
     bjj_dictionary: BJJDictionary,
+    state_manager: StateManager,
 }
 
 impl ProcessorState {
@@ -376,9 +275,12 @@ impl ProcessorState {
         output_dir: &Path,
     ) -> Result<VideoProcessingResult> {
         let start_time = Instant::now();
-        let mut stages_completed = Vec::new();
-
-        // Create base result
+        
+        // Get or create processing state
+        let mut state = self.state_manager.get_or_create_state(video_path).await?;
+        info!("📋 Processing state for {}: {:?} (completed: {:?})", 
+              video_path.display(), state.current_stage, state.completed_stages);
+        
         let mut result = VideoProcessingResult {
             video_info: VideoInfo {
                 path: video_path.to_path_buf(),
@@ -398,52 +300,300 @@ impl ProcessorState {
             processing_time: Duration::from_secs(0),
             status: ProcessingStatus::InProgress,
             error_message: None,
-            stages_completed: Vec::new(),
+            stages_completed: state.completed_stages.iter().map(|s| match s {
+                StateProcessingStage::VideoAnalysis => ProcessingStage::VideoAnalysis,
+                StateProcessingStage::AudioExtraction => ProcessingStage::AudioExtraction,
+                StateProcessingStage::AudioEnhancement => ProcessingStage::AudioEnhancement,
+                StateProcessingStage::Transcription => ProcessingStage::Transcription,
+                StateProcessingStage::LLMCorrection => ProcessingStage::LLMCorrection,
+                StateProcessingStage::SubtitleGeneration => ProcessingStage::TranscriptionPost,
+                StateProcessingStage::Completed => ProcessingStage::Completed,
+            }).collect(),
         };
 
-        // Process video (same logic as in BatchProcessor)
-        match self.video_processor.get_video_info(video_path).await {
-            Ok(video_info) => {
-                result.video_info = video_info;
-                stages_completed.push(ProcessingStage::VideoAnalysis);
+        // Stage 1: Video Analysis
+        if !self.state_manager.can_skip_stage(&state, &StateProcessingStage::VideoAnalysis) {
+            info!("📊 Analyzing video: {}", video_path.display());
+            let stage_start = Instant::now();
+            
+            match self.video_processor.get_video_info(video_path).await {
+                Ok(video_info) => {
+                    result.video_info = video_info.clone();
+                    
+                    // Update state with metadata
+                    state.metadata.duration_seconds = video_info.duration.as_secs_f64();
+                    state.metadata.resolution = (video_info.width, video_info.height);
+                    state.metadata.frame_rate = video_info.fps as f32;
+                    
+                    self.state_manager.mark_stage_completed(&mut state, StateProcessingStage::VideoAnalysis, stage_start.elapsed().as_secs_f64());
+                    self.state_manager.update_state(state.clone()).await?;
+                    
+                    info!("✅ Video analysis completed: {}x{} at {:.1}fps", video_info.width, video_info.height, video_info.fps);
+                }
+                Err(e) => {
+                    result.status = ProcessingStatus::Failed;
+                    result.error_message = Some(format!("Video analysis failed: {}", e));
+                    result.processing_time = start_time.elapsed();
+                    return Ok(result);
+                }
+            }
+        } else {
+            info!("⏭️  Skipping video analysis (already completed)");
+            // Load metadata from state
+            result.video_info.duration = Duration::from_secs_f64(state.metadata.duration_seconds);
+            result.video_info.width = state.metadata.resolution.0;
+            result.video_info.height = state.metadata.resolution.1;
+            result.video_info.fps = state.metadata.frame_rate as f64;
+        }
 
-                // Extract audio
-                match self.audio_extractor.extract_for_transcription(video_path, output_dir).await {
-                    Ok(audio_info) => {
-                        result.audio_info = Some(audio_info.clone());
-                        stages_completed.push(ProcessingStage::AudioExtraction);
-                        
-                        // Transcribe audio
-                        match self.whisper_transcriber.transcribe_audio(&audio_info, output_dir).await {
-                            Ok(transcription_result) => {
-                                result.srt_path = transcription_result.srt_path.clone();
-                                result.text_path = transcription_result.text_path.clone();
-                                result.transcription_result = Some(transcription_result);
-                                stages_completed.push(ProcessingStage::Transcription);
-                                stages_completed.push(ProcessingStage::Completed);
-                                result.status = ProcessingStatus::Completed;
-                            }
-                            Err(_e) => {
-                                // Transcription failed but we still have audio
-                                stages_completed.push(ProcessingStage::Completed);
-                                result.status = ProcessingStatus::Completed;
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        result.status = ProcessingStatus::Failed;
-                        result.error_message = Some(format!("Audio extraction failed: {}", e));
+        // Stage 2: Audio Extraction
+        if !self.state_manager.can_skip_stage(&state, &StateProcessingStage::AudioExtraction) {
+            info!("🎵 Extracting audio from: {}", result.video_info.filename);
+            let stage_start = Instant::now();
+            
+            match self.audio_extractor.extract_for_transcription(video_path, output_dir).await {
+                Ok(audio_info) => {
+                    result.audio_info = Some(audio_info.clone());
+                    
+                    // Update state with audio info
+                    state.generated_files.audio_path = Some(audio_info.path.clone());
+                    state.metadata.audio_sample_rate = Some(audio_info.sample_rate);
+                    
+                    self.state_manager.mark_stage_completed(&mut state, StateProcessingStage::AudioExtraction, stage_start.elapsed().as_secs_f64());
+                    self.state_manager.update_state(state.clone()).await?;
+                    
+                    info!("✅ Audio extracted: {:.1}s duration, {}Hz", audio_info.duration.as_secs_f64(), audio_info.sample_rate);
+                }
+                Err(e) => {
+                    warn!("⚠️ Audio extraction failed for {}: {}", result.video_info.filename, e);
+                    self.state_manager.mark_stage_completed(&mut state, StateProcessingStage::AudioExtraction, stage_start.elapsed().as_secs_f64());
+                    self.state_manager.update_state(state.clone()).await?;
+                }
+            }
+        } else {
+            info!("⏭️  Skipping audio extraction (already completed)");
+            // Load audio info from state if available
+            if let Some(audio_path) = &state.generated_files.audio_path {
+                if audio_path.exists() {
+                    // Create a basic AudioInfo from the path - we'll need to add this method
+                    if let Ok(metadata) = tokio::fs::metadata(audio_path).await {
+                        use crate::audio::AudioInfo;
+                        result.audio_info = Some(AudioInfo {
+                            path: audio_path.to_path_buf(),
+                            duration: Duration::from_secs_f64(state.metadata.duration_seconds),
+                            sample_rate: state.metadata.audio_sample_rate.unwrap_or(44100),
+                            channels: 1, // Default assumption
+                            file_size: metadata.len(),
+                            format: "wav".to_string(),
+                            bitrate: None, // Unknown from cached state
+                        });
                     }
                 }
             }
-            Err(e) => {
-                result.status = ProcessingStatus::Failed;
-                result.error_message = Some(format!("Video analysis failed: {}", e));
+        }
+
+        // Stage 3: Transcription
+        if let Some(ref audio_info) = result.audio_info {
+            if !self.state_manager.can_skip_stage(&state, &StateProcessingStage::Transcription) {
+                info!("🎤 Starting Whisper transcription: {} ({:?} duration)", 
+                      audio_info.path.display(), audio_info.duration);
+                
+                let stage_start = Instant::now();
+                match self.whisper_transcriber.transcribe_audio(audio_info, output_dir).await {
+                    Ok(transcription_result) => {
+                        // Store paths in state
+                        state.generated_files.raw_transcript_path = transcription_result.text_path.clone();
+                        state.generated_files.srt_path = transcription_result.srt_path.clone();
+                        state.metadata.transcription_model = Some(transcription_result.model_used.clone());
+                        state.metadata.segment_count = Some(transcription_result.segments.len());
+                        
+                        result.srt_path = transcription_result.srt_path.clone();
+                        result.text_path = transcription_result.text_path.clone();
+                        result.transcription_result = Some(transcription_result);
+                        
+                        self.state_manager.mark_stage_completed(&mut state, StateProcessingStage::Transcription, stage_start.elapsed().as_secs_f64());
+                        self.state_manager.update_state(state.clone()).await?;
+                        
+                        info!("✅ Transcription completed: {} characters", 
+                              result.transcription_result.as_ref().unwrap().text.len());
+                    }
+                    Err(e) => {
+                        error!("❌ Transcription failed: {}", e);
+                        self.state_manager.mark_stage_completed(&mut state, StateProcessingStage::Transcription, stage_start.elapsed().as_secs_f64());
+                        self.state_manager.update_state(state.clone()).await?;
+                    }
+                }
+            } else {
+                info!("⏭️  Skipping transcription (already completed)");
+                // Load transcription from state files
+                if let Some(text_path) = &state.generated_files.raw_transcript_path {
+                    if text_path.exists() {
+                        match tokio::fs::read_to_string(text_path).await {
+                            Ok(text) => {
+                                use crate::transcription::TranscriptionResult;
+                                result.transcription_result = Some(TranscriptionResult {
+                                    text,
+                                    language: Some("en".to_string()),
+                                    segments: Vec::new(), // Will be loaded if needed
+                                    srt_path: state.generated_files.srt_path.clone(),
+                                    text_path: Some(text_path.to_path_buf()),
+                                    processing_time: Duration::from_secs(0),
+                                    model_used: state.metadata.transcription_model.clone().unwrap_or_else(|| "unknown".to_string()),
+                                    bjj_prompt: None,
+                                });
+                                result.text_path = Some(text_path.to_path_buf());
+                                result.srt_path = state.generated_files.srt_path.clone();
+                            }
+                            Err(e) => warn!("Failed to load cached transcription: {}", e),
+                        }
+                    }
+                }
             }
         }
 
+        // Stage 4: LLM Correction (if enabled)
+        if let Some(ref mut transcription_result) = result.transcription_result {
+            if self.config.llm.enable_correction && !self.state_manager.can_skip_stage(&state, &StateProcessingStage::LLMCorrection) {
+                info!("🤖 Starting LLM transcription correction: {}", result.video_info.filename);
+                let stage_start = Instant::now();
+                
+                let llm_config = crate::llm::LLMConfig {
+                    provider: match self.config.llm.provider {
+                        crate::config::LLMProvider::LMStudio => crate::llm::LLMProvider::LMStudio,
+                        crate::config::LLMProvider::Gemini => crate::llm::LLMProvider::Gemini,
+                        crate::config::LLMProvider::OpenAI => crate::llm::LLMProvider::OpenAI,
+                    },
+                    endpoint: self.config.llm.endpoint.clone(),
+                    api_key: self.config.llm.api_key.clone(),
+                    model: self.config.llm.model.clone(),
+                    max_tokens: self.config.llm.max_tokens,
+                    temperature: self.config.llm.temperature,
+                    timeout_seconds: self.config.llm.timeout_seconds,
+                };
+
+                use crate::llm::correction::get_transcription_corrections;
+                match get_transcription_corrections(
+                    &transcription_result.text,
+                    llm_config,
+                    self.config.llm.prompt_file.as_deref(),
+                ).await {
+                    Ok(corrections) => {
+                        state.metadata.corrections_applied = Some(corrections.replacements.len());
+                        
+                        if !corrections.replacements.is_empty() {
+                            info!("✨ Applying {} LLM corrections to text and SRT files", corrections.replacements.len());
+                            
+                            use crate::llm::correction::apply_text_replacements;
+                            let corrected_text = apply_text_replacements(&transcription_result.text, &corrections.replacements);
+                            transcription_result.text = corrected_text;
+                            
+                            let video_stem = video_path.file_stem().unwrap().to_string_lossy();
+                            
+                            // Handle .txt file correction
+                            if let Some(ref original_text_path) = transcription_result.text_path {
+                                let old_text_path = output_dir.join(format!("{}_old.txt", video_stem));
+                                let new_text_path = output_dir.join(format!("{}.txt", video_stem));
+                                
+                                // Rename original to _old.txt
+                                if let Err(e) = tokio::fs::rename(original_text_path, &old_text_path).await {
+                                    warn!("Failed to rename original text file: {}", e);
+                                } else {
+                                    // Write corrected text as the main file
+                                    if let Err(e) = tokio::fs::write(&new_text_path, &transcription_result.text).await {
+                                        warn!("Failed to write corrected text file: {}", e);
+                                    } else {
+                                        transcription_result.text_path = Some(new_text_path.clone());
+                                        state.generated_files.raw_transcript_path = Some(new_text_path.clone());
+                                        state.generated_files.corrected_transcript_path = Some(old_text_path);
+                                        info!("📝 Corrected text file saved: {}", new_text_path.display());
+                                    }
+                                }
+                            }
+                            
+                            // Handle .srt file correction
+                            if let Some(ref original_srt_path) = transcription_result.srt_path {
+                                let old_srt_path = output_dir.join(format!("{}_old.srt", video_stem));
+                                let new_srt_path = output_dir.join(format!("{}.srt", video_stem));
+                                
+                                // Read original SRT content
+                                match tokio::fs::read_to_string(original_srt_path).await {
+                                    Ok(srt_content) => {
+                                        // Apply corrections to SRT content
+                                        let corrected_srt = apply_text_replacements(&srt_content, &corrections.replacements);
+                                        
+                                        // Rename original to _old.srt
+                                        if let Err(e) = tokio::fs::rename(original_srt_path, &old_srt_path).await {
+                                            warn!("Failed to rename original SRT file: {}", e);
+                                        } else {
+                                            // Write corrected SRT as the main file
+                                            if let Err(e) = tokio::fs::write(&new_srt_path, corrected_srt).await {
+                                                warn!("Failed to write corrected SRT file: {}", e);
+                                            } else {
+                                                transcription_result.srt_path = Some(new_srt_path.clone());
+                                                state.generated_files.srt_path = Some(new_srt_path.clone());
+                                                info!("🎬 Corrected SRT file saved: {}", new_srt_path.display());
+                                            }
+                                        }
+                                    }
+                                    Err(e) => warn!("Failed to read original SRT file for correction: {}", e),
+                                }
+                            }
+                        } else {
+                            info!("📝 No corrections needed");
+                        }
+                        
+                        self.state_manager.mark_stage_completed(&mut state, StateProcessingStage::LLMCorrection, stage_start.elapsed().as_secs_f64());
+                        self.state_manager.update_state(state.clone()).await?;
+                    }
+                    Err(e) => {
+                        warn!("⚠️ LLM correction failed: {}", e);
+                        self.state_manager.mark_stage_completed(&mut state, StateProcessingStage::LLMCorrection, stage_start.elapsed().as_secs_f64());
+                        self.state_manager.update_state(state.clone()).await?;
+                    }
+                }
+            } else if self.config.llm.enable_correction {
+                info!("⏭️  Skipping LLM correction (already completed)");
+                // Load corrected text if available
+                if let Some(corrected_path) = &state.generated_files.corrected_transcript_path {
+                    if corrected_path.exists() {
+                        match tokio::fs::read_to_string(corrected_path).await {
+                            Ok(corrected_text) => {
+                                transcription_result.text = corrected_text;
+                                info!("📝 Loaded corrected transcript");
+                            }
+                            Err(e) => warn!("Failed to load corrected transcript: {}", e),
+                        }
+                    }
+                }
+            } else {
+                info!("🔕 LLM correction disabled");
+                self.state_manager.mark_stage_completed(&mut state, StateProcessingStage::LLMCorrection, 0.0);
+                self.state_manager.update_state(state.clone()).await?;
+            }
+        }
+
+        // Mark as completed
+        self.state_manager.mark_stage_completed(&mut state, StateProcessingStage::Completed, 0.0);
+        state.metadata.total_processing_time = start_time.elapsed().as_secs_f64();
+        self.state_manager.update_state(state.clone()).await?;
+        
+        result.status = ProcessingStatus::Completed;
         result.processing_time = start_time.elapsed();
-        result.stages_completed = stages_completed;
+        result.stages_completed = state.completed_stages.iter().map(|s| match s {
+            StateProcessingStage::VideoAnalysis => ProcessingStage::VideoAnalysis,
+            StateProcessingStage::AudioExtraction => ProcessingStage::AudioExtraction,
+            StateProcessingStage::AudioEnhancement => ProcessingStage::AudioEnhancement,
+            StateProcessingStage::Transcription => ProcessingStage::Transcription,
+            StateProcessingStage::LLMCorrection => ProcessingStage::LLMCorrection,
+            StateProcessingStage::SubtitleGeneration => ProcessingStage::TranscriptionPost,
+            StateProcessingStage::Completed => ProcessingStage::Completed,
+        }).collect();
+
+        info!("🎉 Video processing completed: {} (total: {:.1}s, skipped: {} stages)", 
+              result.video_info.filename, 
+              result.processing_time.as_secs_f64(),
+              state.completed_stages.len() - 1); // -1 for the Completed stage
+        
         Ok(result)
     }
 }

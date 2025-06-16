@@ -10,6 +10,7 @@ license = "MIT"
 # Async runtime
 tokio = { version = "1.40", features = ["full"] }
 futures = "0.3"
+async-trait = "0.1"
 
 # HTTP client for API calls
 reqwest = { version = "0.12", features = ["json", "stream", "multipart"] }
@@ -65,6 +66,10 @@ path = "src/bin/check_transcription.rs"
 [[bin]]
 name = "quick-bench"
 path = "src/bin/quick_bench.rs"
+
+[[bin]]
+name = "test-llm"
+path = "src/bin/test_llm.rs"
 
 [profile.release]
 opt-level = 3

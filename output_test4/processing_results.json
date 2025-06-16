@@ -1,0 +1,64 @@
+{
+  "total": 1,
+  "successful": 1,
+  "failed": 0,
+  "total_time": {
+    "secs": 163,
+    "nanos": 100554459
+  },
+  "results": [
+    {
+      "video_info": {
+        "path": "./test_single/ModernReverseDeLaRivabyJasonRua3.mp4",
+        "filename": "ModernReverseDeLaRivabyJasonRua3.mp4",
+        "duration": {
+          "secs": 1174,
+          "nanos": 200000000
+        },
+        "width": 1280,
+        "height": 720,
+        "fps": 25.0,
+        "format": "mov,mp4,m4a,3gp,3g2,mj2",
+        "file_size": 397660138,
+        "audio_streams": [
+          {
+            "index": 0,
+            "codec": "aac",
+            "sample_rate": 44100,
+            "channels": 2,
+            "duration": {
+              "secs": 1174,
+              "nanos": 143991000
+            }
+          }
+        ]
+      },
+      "audio_info": {
+        "path": "./output_test4/audio/ModernReverseDeLaRivabyJasonRua3.wav",
+        "duration": {
+          "secs": 1174,
+          "nanos": 163438000
+        },
+        "sample_rate": 16000,
+        "channels": 1,
+        "format": "pcm_s16le",
+        "bitrate": 256000,
+        "file_size": 37573308
+      },
+      "transcription_result": null,
+      "srt_path": null,
+      "text_path": null,
+      "processing_time": {
+        "secs": 163,
+        "nanos": 100262458
+      },
+      "status": "Completed",
+      "error_message": null,
+      "stages_completed": [
+        "VideoAnalysis",
+        "AudioExtraction",
+        "Completed"
+      ]
+    }
+  ]
+}

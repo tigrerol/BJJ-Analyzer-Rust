@@ -10,16 +10,29 @@ mod config;
 mod api;
 mod bjj;
 mod transcription;
+mod llm;
+mod state;
 
 use crate::config::Config;
 use crate::processing::BatchProcessor;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize logging
+    // Initialize logging with file output
+    use tracing_subscriber::fmt::writer::MakeWriterExt;
+    let log_file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("bjj_analyzer.log")
+        .expect("Failed to create log file");
+    
     tracing_subscriber::fmt()
-        .with_env_filter("bjj_analyzer_rust=info,warn")
+        .with_env_filter("debug")
+        .with_writer(std::io::stdout.and(log_file))
         .init();
+
+    info!("🔧 Logging system initialized");
+    info!("📝 Log file: bjj_analyzer.log");
 
     let matches = Command::new("BJJ Video Analyzer (Rust)")
         .version("0.1.0")
@@ -77,6 +90,9 @@ async fn main() -> Result<()> {
     info!("📁 Input directory: {}", video_dir.display());
     info!("📂 Output directory: {}", output_dir.display());
     info!("🔧 Workers: {}", workers);
+    info!("🤖 LLM correction enabled: {}", config.llm.enable_correction);
+    info!("🤖 LLM provider: {:?}", config.llm.provider);
+    info!("🤖 LLM endpoint: {:?}", config.llm.endpoint);
 
     // Validate input directory
     if !video_dir.exists() {
