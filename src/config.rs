@@ -115,6 +115,18 @@ pub struct TranscriptionConfig {
     
     /// Beam size for Whisper search
     pub beam_size: u32,
+    
+    /// Enable fallback to local Whisper if remote fails
+    pub enable_fallback: bool,
+    
+    /// Connection timeout for remote server (seconds)
+    pub connection_timeout: u32,
+    
+    /// Upload chunk size for large audio files (bytes)
+    pub upload_chunk_size: u64,
+    
+    /// Enable word-level timestamps for remote transcription
+    pub word_timestamps: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -124,6 +136,7 @@ pub enum TranscriptionProvider {
     GoogleCloud,
     Azure,
     Local,
+    Remote,
     External,
 }
 
@@ -402,6 +415,11 @@ impl Config {
                     return Err(anyhow!("API key required for external transcription provider"));
                 }
             }
+            TranscriptionProvider::Remote => {
+                if self.transcription.api_endpoint.is_none() {
+                    return Err(anyhow!("API endpoint required for remote transcription provider"));
+                }
+            }
             _ => {}
         }
 
@@ -473,6 +491,10 @@ impl Default for Config {
                 temperature: 0.0,
                 best_of: 3,
                 beam_size: 5,
+                enable_fallback: true,
+                connection_timeout: 30, // 30 seconds for API calls
+                upload_chunk_size: 10 * 1024 * 1024, // 10MB chunks
+                word_timestamps: true,
             },
             llm: LLMConfig {
                 enable_correction: true,

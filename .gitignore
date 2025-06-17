@@ -41,3 +41,29 @@ __pycache__/
 
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/
+bjj_analyzer.log
+
+# Large media files
+*.wav
+*.avi
+*.mp4
+*.mkv
+*.mov
+*.flv
+*.wmv
+
+# ML model files
+*.model
+*.bin
+*.pth
+*.safetensors
+*.onnx
+
+# State and cache directories
+.bjj_analyzer_state/
+chapters/
+RolOutput/
+output_test*/
+
+# Rust incremental compilation cache
+target/debug/incremental/

@@ -302,6 +302,13 @@ impl BatchProcessor {
         Ok(reset_count)
     }
 
+    /// Get a StateManager for a specific directory
+    pub async fn get_state_manager_for_dir(&self, input_dir: &std::path::Path) -> Result<std::sync::Arc<StateManager>> {
+        let state_dir = input_dir.join(".bjj_analyzer_state");
+        let state_manager = StateManager::new(state_dir).await?;
+        Ok(std::sync::Arc::new(state_manager))
+    }
+
     /// Get processing statistics
     pub fn get_stats(&self) -> ProcessingStats {
         ProcessingStats {

@@ -6,6 +6,8 @@ use tokio::process::Command;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use std::process::Stdio;
 use tracing::{info, warn, debug, error};
+use reqwest::multipart;
+use crate::config::TranscriptionProvider;
 
 use crate::audio::AudioInfo;
 use crate::bjj::BJJDictionary;
@@ -52,6 +54,19 @@ pub struct TranscriptionResult {
     pub bjj_prompt: Option<String>,
 }
 
+/// Remote Whisper client for GPU server communication
+#[derive(Debug, Clone)]
+pub struct RemoteWhisperClient {
+    /// HTTP client for API communication
+    client: reqwest::Client,
+    /// API endpoint URL
+    endpoint: String,
+    /// Connection timeout
+    timeout: Duration,
+    /// Upload chunk size for large files
+    chunk_size: u64,
+}
+
 /// Whisper transcriber with BJJ-specific optimization
 #[derive(Debug, Clone)]
 pub struct WhisperTranscriber {
@@ -63,6 +78,133 @@ pub struct WhisperTranscriber {
     model: String,
     /// Enable GPU acceleration
     use_gpu: bool,
+    /// Remote client for GPU server communication
+    remote_client: Option<RemoteWhisperClient>,
+}
+
+impl RemoteWhisperClient {
+    /// Create a new remote Whisper client
+    pub fn new(endpoint: String, timeout: Duration, chunk_size: u64) -> Self {
+        let client = reqwest::Client::builder()
+            .timeout(timeout)
+            .build()
+            .expect("Failed to create HTTP client");
+
+        Self {
+            client,
+            endpoint,
+            timeout,
+            chunk_size,
+        }
+    }
+
+    /// Check if remote server is available
+    pub async fn check_health(&self) -> Result<bool> {
+        let health_url = format!("{}/health", self.endpoint);
+        
+        match self.client.get(&health_url).send().await {
+            Ok(response) => {
+                if response.status().is_success() {
+                    if let Ok(health_data) = response.json::<serde_json::Value>().await {
+                        return Ok(health_data["status"] == "healthy");
+                    }
+                }
+                Ok(false)
+            }
+            Err(e) => {
+                debug!("Remote server health check failed: {}", e);
+                Ok(false)
+            }
+        }
+    }
+
+    /// Transcribe audio using remote server
+    pub async fn transcribe_audio(
+        &self,
+        audio_path: &Path,
+        model: &str,
+        language: Option<&str>,
+        prompt: Option<&str>,
+        temperature: f32,
+        word_timestamps: bool,
+    ) -> Result<TranscriptionResult> {
+        let start_time = std::time::Instant::now();
+        
+        info!("🌐 Starting remote transcription: {}", audio_path.display());
+        
+        // Read audio file
+        let audio_data = tokio::fs::read(audio_path).await?;
+        let file_name = audio_path.file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+            
+        info!("📤 Uploading {} ({:.1}MB) to remote server", 
+              file_name, audio_data.len() as f64 / 1_000_000.0);
+
+        // Create multipart form
+        let mut form = multipart::Form::new()
+            .part("audio", multipart::Part::bytes(audio_data)
+                .file_name(file_name)
+                .mime_str("audio/wav")?)
+            .text("model", model.to_string())
+            .text("temperature", temperature.to_string())
+            .text("word_timestamps", word_timestamps.to_string());
+
+        if let Some(lang) = language {
+            form = form.text("language", lang.to_string());
+        }
+
+        if let Some(prompt_text) = prompt {
+            form = form.text("prompt", prompt_text.to_string());
+        }
+
+        // Send request
+        let transcribe_url = format!("{}/transcribe", self.endpoint);
+        let response = self.client
+            .post(&transcribe_url)
+            .multipart(form)
+            .send()
+            .await
+            .map_err(|e| anyhow!("Failed to send transcription request: {}", e))?;
+
+        if !response.status().is_success() {
+            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(anyhow!("Remote transcription failed: {}", error_text));
+        }
+
+        // Parse response
+        let remote_result: RemoteTranscriptionResponse = response.json().await
+            .map_err(|e| anyhow!("Failed to parse remote response: {}", e))?;
+
+        info!("✅ Remote transcription completed in {:.1}s", remote_result.processing_time);
+
+        // Convert to our format
+        let segments = remote_result.segments.into_iter()
+            .map(|seg| TranscriptionSegment {
+                id: seg.id,
+                start: seg.start,
+                end: seg.end,
+                text: seg.text,
+                confidence: seg.avg_logprob.map(|p| (p + 1.0) / 2.0), // Normalize to 0-1
+                avg_logprob: seg.avg_logprob,
+                no_speech_prob: seg.no_speech_prob,
+            })
+            .collect();
+
+        let processing_time = start_time.elapsed();
+
+        Ok(TranscriptionResult {
+            text: remote_result.text,
+            language: Some(remote_result.language),
+            segments,
+            srt_path: None, // Will be generated later
+            text_path: None, // Will be generated later
+            processing_time,
+            model_used: remote_result.model_used,
+            bjj_prompt: prompt.map(|s| s.to_string()),
+        })
+    }
 }
 
 impl WhisperTranscriber {
@@ -70,11 +212,25 @@ impl WhisperTranscriber {
     pub fn new(config: TranscriptionConfig, bjj_dictionary: BJJDictionary) -> Self {
         let model = config.model.clone();
         
+        // Create remote client if using remote provider
+        let remote_client = if matches!(config.provider, TranscriptionProvider::Remote) {
+            if let Some(endpoint) = &config.api_endpoint {
+                let timeout = Duration::from_secs(config.connection_timeout as u64);
+                Some(RemoteWhisperClient::new(endpoint.clone(), timeout, config.upload_chunk_size))
+            } else {
+                warn!("Remote provider specified but no endpoint configured");
+                None
+            }
+        } else {
+            None
+        };
+        
         Self {
             config,
             bjj_dictionary,
             model,
             use_gpu: Self::detect_gpu_support(),
+            remote_client,
         }
     }
     
@@ -162,14 +318,49 @@ impl WhisperTranscriber {
         output_dir: &Path,
         bjj_prompt: &str,
     ) -> Result<WhisperOutput> {
-        // Try different whisper implementations in order of preference
+        // Try remote backend first if configured
+        if matches!(self.config.provider, TranscriptionProvider::Remote) {
+            if let Some(remote_client) = &self.remote_client {
+                info!("🌐 Attempting remote transcription...");
+                
+                // Check if remote server is healthy
+                if remote_client.check_health().await.unwrap_or(false) {
+                    info!("✅ Remote server is healthy, using remote transcription");
+                    
+                    match self.run_remote_whisper_command(audio_path, output_dir, bjj_prompt).await {
+                        Ok(result) => return Ok(result),
+                        Err(e) => {
+                            error!("❌ Remote transcription failed: {}", e);
+                            if !self.config.enable_fallback {
+                                return Err(e);
+                            }
+                            warn!("🔄 Falling back to local transcription...");
+                        }
+                    }
+                } else {
+                    warn!("❌ Remote server is not healthy");
+                    if !self.config.enable_fallback {
+                        return Err(anyhow!("Remote server is not available and fallback is disabled"));
+                    }
+                    warn!("🔄 Falling back to local transcription...");
+                }
+            } else {
+                warn!("❌ Remote provider configured but no client available");
+                if !self.config.enable_fallback {
+                    return Err(anyhow!("Remote client not configured and fallback is disabled"));
+                }
+                warn!("🔄 Falling back to local transcription...");
+            }
+        }
+
+        // Try different local whisper implementations in order of preference
         let backends = [
             ("whisper-cli", true),  // whisper.cpp via Homebrew (fastest)
             ("whisper-cpp", true),  // whisper.cpp (fastest)
             ("whisper", false),     // Python OpenAI Whisper (fallback)
         ];
         
-        info!("🔍 Detecting available Whisper backends...");
+        info!("🔍 Detecting available local Whisper backends...");
         
         for (cmd_name, is_cpp) in &backends {
             info!("🔍 Checking for {} command...", cmd_name);
@@ -187,6 +378,48 @@ impl WhisperTranscriber {
         
         error!("❌ No Whisper backend found!");
         Err(anyhow!("No Whisper backend found. Please install whisper.cpp or openai-whisper"))
+    }
+    
+    /// Run remote Whisper transcription
+    async fn run_remote_whisper_command(
+        &self,
+        audio_path: &Path,
+        _output_dir: &Path,
+        bjj_prompt: &str,
+    ) -> Result<WhisperOutput> {
+        let remote_client = self.remote_client.as_ref()
+            .ok_or_else(|| anyhow!("Remote client not configured"))?;
+
+        // Use remote client to transcribe
+        let transcription_result = remote_client.transcribe_audio(
+            audio_path,
+            &self.model,
+            self.config.language.as_deref(),
+            if bjj_prompt.is_empty() { None } else { Some(bjj_prompt) },
+            self.config.temperature,
+            self.config.word_timestamps,
+        ).await?;
+
+        // Convert TranscriptionResult back to WhisperOutput format for compatibility
+        // This is a bit awkward but maintains compatibility with existing code
+        let segments: Vec<WhisperSegment> = transcription_result.segments.into_iter()
+            .map(|seg| WhisperSegment {
+                id: seg.id,
+                start: seg.start,
+                end: seg.end,
+                text: seg.text,
+                avg_logprob: seg.avg_logprob,
+                no_speech_prob: seg.no_speech_prob,
+            })
+            .collect();
+
+        Ok(WhisperOutput {
+            text: Some(transcription_result.text),
+            language: transcription_result.language,
+            segments,
+            transcription: Vec::new(), // Not used in this format
+            result: None, // Not used in this format
+        })
     }
     
     /// Run whisper.cpp (C++ implementation - fastest)
@@ -824,6 +1057,28 @@ struct WhisperOffsets {
 
 #[derive(Debug, Clone, Deserialize)]
 struct WhisperSegment {
+    id: u32,
+    start: f64,
+    end: f64,
+    text: String,
+    #[serde(default)]
+    avg_logprob: Option<f64>,
+    #[serde(default)]
+    no_speech_prob: Option<f64>,
+}
+
+/// Response format from remote Whisper server
+#[derive(Debug, Clone, Deserialize)]
+struct RemoteTranscriptionResponse {
+    text: String,
+    language: String,
+    segments: Vec<RemoteSegment>,
+    processing_time: f64,
+    model_used: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct RemoteSegment {
     id: u32,
     start: f64,
     end: f64,

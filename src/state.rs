@@ -418,6 +418,12 @@ impl StateManager {
             state_cache_size: cache.len(),
         })
     }
+
+    /// Get all video states for API access
+    pub async fn get_all_states(&self) -> Result<Vec<VideoProcessingState>> {
+        let cache = self.state_cache.read().await;
+        Ok(cache.values().cloned().collect())
+    }
     
     /// Clean up old or invalid state files
     pub async fn cleanup_invalid_states(&self) -> Result<usize> {

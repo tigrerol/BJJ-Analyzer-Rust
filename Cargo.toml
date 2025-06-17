@@ -45,11 +45,19 @@ tempfile = "3.8"
 # Date/time handling
 chrono = { version = "0.4", features = ["serde"] }
 
+# Hashing
+md5 = "0.7"
+
 # CPU count detection
 num_cpus = "1.16"
 
 # Optional: Python bindings
 pyo3 = { version = "0.22", features = ["auto-initialize"], optional = true }
+
+# Optional: Web API dependencies
+axum = { version = "0.7", features = ["ws"], optional = true }
+tower = { version = "0.4", optional = true }
+tower-http = { version = "0.5", features = ["fs", "trace", "cors"], optional = true }
 
 # Development dependencies
 [dev-dependencies]
@@ -60,6 +68,7 @@ tokio-test = "0.4"
 [features]
 default = []
 python-bindings = ["pyo3"]
+api = ["axum", "tower", "tower-http"]
 
 # Binary executables
 [[bin]]
@@ -93,6 +102,10 @@ path = "test_search_flow.rs"
 [[bin]]
 name = "cache-manager"
 path = "src/bin/cache_manager.rs"
+
+[[bin]]
+name = "test-api"
+path = "test_api.rs"
 
 
 

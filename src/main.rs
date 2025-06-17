@@ -7,12 +7,16 @@ mod video;
 mod audio;
 mod processing;
 mod config;
-mod api;
+mod transcription_api;
 mod bjj;
 mod transcription;
 mod llm;
 mod state;
 mod chapters;
+mod series;
+
+#[cfg(feature = "api")]
+mod api;
 
 use crate::config::Config;
 use crate::processing::BatchProcessor;
@@ -28,7 +32,7 @@ async fn main() -> Result<()> {
         .expect("Failed to create log file");
     
     tracing_subscriber::fmt()
-        .with_env_filter("debug")
+        .with_env_filter("info")
         .with_writer(std::io::stdout.and(log_file))
         .init();
 
@@ -82,6 +86,12 @@ async fn main() -> Result<()> {
                 .help("Reset chapter detection state to force re-scraping")
                 .action(clap::ArgAction::SetTrue)
         )
+        .arg(
+            Arg::new("api-port")
+                .long("api-port")
+                .value_name("PORT")
+                .help("Enable API server on specified port (requires 'api' feature)")
+        )
         .get_matches();
 
     let clear_cache = matches.get_flag("clear-cache");
@@ -111,6 +121,7 @@ async fn main() -> Result<()> {
     let output_dir = PathBuf::from(matches.get_one::<String>("output-dir").unwrap());
     let workers: usize = matches.get_one::<String>("workers").unwrap().parse()?;
     let verbose = matches.get_flag("verbose");
+    let api_port = matches.get_one::<String>("api-port");
 
     if verbose {
         info!("Verbose logging enabled");
@@ -142,6 +153,25 @@ async fn main() -> Result<()> {
     // Initialize batch processor
     let processor = BatchProcessor::new(config, workers).await?;
     
+    // Start API server if requested
+    #[cfg(feature = "api")]
+    let _api_handle = if let Some(port_str) = api_port {
+        let port: u16 = port_str.parse()
+            .map_err(|_| anyhow::anyhow!("Invalid port number: {}", port_str))?;
+        
+        info!("🌐 Starting API server on port {}", port);
+        let state_manager = processor.get_state_manager_for_dir(&video_dir).await?;
+        let api_server = crate::api::ApiServer::new(state_manager, port);
+        Some(api_server.start_background())
+    } else {
+        None
+    };
+    
+    #[cfg(not(feature = "api"))]
+    if api_port.is_some() {
+        warn!("API server requested but 'api' feature not enabled. Rebuild with --features api");
+    }
+    
     // Handle chapter state reset if requested
     if reset_chapters {
         info!("🔄 Resetting chapter detection state for all videos...");
@@ -149,7 +179,24 @@ async fn main() -> Result<()> {
         info!("✅ Reset chapter detection state for {} videos", reset_count);
     }
 
-    // Start processing
+    // Check if running in API server mode
+    #[cfg(feature = "api")]
+    if api_port.is_some() {
+        info!("🌐 Running in API server mode - processing will be triggered via API calls");
+        info!("🎯 Access the web interface or use API endpoints to process videos");
+        info!("🛑 Press Ctrl+C to stop the server");
+        
+        // Wait for the API server (it's running in background)
+        if let Some(api_handle) = _api_handle {
+            // Keep the server running indefinitely
+            if let Err(e) = api_handle.await? {
+                error!("API server error: {}", e);
+            }
+        }
+        return Ok(());
+    }
+
+    // Standard batch processing mode (when no --api-port specified)
     let start_time = std::time::Instant::now();
     let results = processor.process_directory(video_dir, output_dir).await?;
     let duration = start_time.elapsed();
