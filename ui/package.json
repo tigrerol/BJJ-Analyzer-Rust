@@ -1,0 +1,35 @@
+{
+  "name": "bjj-analyzer-ui",
+  "version": "1.0.0",
+  "description": "Web UI for BJJ Video Analyzer Rust backend",
+  "main": "index.html",
+  "scripts": {
+    "start": "python3 -m http.server 3000",
+    "start-node": "npx serve . -p 3000",
+    "dev": "python3 -m http.server 3000",
+    "build": "echo 'No build step required for vanilla HTML/CSS/JS'",
+    "test": "echo 'No tests configured'",
+    "format": "prettier --write '**/*.{html,css,js,json,md}'",
+    "lint": "eslint js/**/*.js"
+  },
+  "keywords": [
+    "bjj",
+    "video-analysis",
+    "ui",
+    "web-interface"
+  ],
+  "author": "TigreRoll",
+  "license": "MIT",
+  "devDependencies": {
+    "prettier": "^3.0.0",
+    "eslint": "^8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/bjj-analyzer-ui.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/bjj-analyzer-ui/issues"
+  },
+  "homepage": "https://github.com/your-username/bjj-analyzer-ui#readme"
+}

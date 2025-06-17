@@ -34,6 +34,12 @@ High-performance Brazilian Jiu-Jitsu video analysis and processing system writte
 - **Metrics**: Performance monitoring and statistics
 - **Error Recovery**: Graceful failure handling and recovery
 
+### Additional Tools
+- **🖥️ Web UI**: Browser-based interface for video management and series organization (`ui/`)
+- **🔍 Chapter Finder**: Tool to discover BJJ Fanatics product pages from video filenames (`tools/chapter-finder/`)
+- **🚀 Remote GPU Server**: Docker container for high-performance Whisper transcription (`remote-whisper-server/`)
+- **🐍 Python Integration**: Bridge for Python applications and scripts (`examples/`)
+
 ## 📦 Installation
 
 ### Prerequisites
@@ -212,6 +218,48 @@ result = processor.process_directory("./videos", "./output")
 stats = processor.get_stats()
 print(f"Workers: {stats['max_workers']}, Available: {stats['available_permits']}")
 ```
+
+## 🛠️ Additional Tools
+
+### Web UI (`ui/`)
+
+Browser-based interface for managing video processing and series organization:
+
+```bash
+# Start the backend with API enabled
+cargo run --features api -- --video-dir ./videos --api-port 8080
+
+# Serve the UI (any web server)
+cd ui && python -m http.server 3000
+# Visit: http://localhost:3000
+```
+
+**Features:**
+- 📹 Video library browser with processing status
+- 📚 Series management and metadata editing
+- ✏️ Correction interface for series mapping
+- 📊 Real-time processing status updates
+
+### Chapter Finder (`tools/chapter-finder/`)
+
+Automatically discover BJJ Fanatics product pages from video filenames:
+
+```bash
+cd tools/chapter-finder
+pip install -r requirements.txt
+
+# Process a directory
+python bjj_fanatics_finder.py "/path/to/videos"
+
+# Process specific files
+python bjj_fanatics_finder.py "JustStandUpbyCraigJones1.mp4"
+```
+
+**Features:**
+- 🔍 Automatic Google search for BJJ Fanatics pages
+- 📝 Saves results to `product-pages.txt`
+- 🕰️ Rate limiting to avoid search restrictions
+- 📁 Recursive directory processing
 
 ## 🏗️ Architecture
 

@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BJJ Video Analyzer - Dashboard</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <h1><i class="fas fa-video"></i> BJJ Video Analyzer</h1>
+                <div class="connection-status">
+                    <span id="connection-indicator" class="status-indicator disconnected">
+                        <i class="fas fa-circle"></i>
+                        <span id="connection-text">Connecting...</span>
+                    </span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="app-nav">
+            <ul class="nav-tabs">
+                <li class="nav-tab active" data-tab="videos">
+                    <i class="fas fa-film"></i> Videos
+                </li>
+                <li class="nav-tab" data-tab="series">
+                    <i class="fas fa-layer-group"></i> Series
+                </li>
+                <li class="nav-tab" data-tab="corrections">
+                    <i class="fas fa-edit"></i> Corrections
+                </li>
+                <li class="nav-tab" data-tab="status">
+                    <i class="fas fa-chart-line"></i> Status
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="app-main">
+            <!-- Videos Tab -->
+            <section id="videos-tab" class="tab-content active">
+                <div class="tab-header">
+                    <h2><i class="fas fa-film"></i> Video Library</h2>
+                    <div class="tab-controls">
+                        <div class="search-box">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="video-search" placeholder="Search videos...">
+                        </div>
+                        <select id="status-filter">
+                            <option value="">All Status</option>
+                            <option value="completed">Completed</option>
+                            <option value="processing">Processing</option>
+                            <option value="pending">Pending</option>
+                            <option value="failed">Failed</option>
+                        </select>
+                        <button id="refresh-videos" class="btn btn-primary">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                <div id="videos-container" class="content-container">
+                    <div class="loading-spinner">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <p>Loading videos...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Series Tab -->
+            <section id="series-tab" class="tab-content">
+                <div class="tab-header">
+                    <h2><i class="fas fa-layer-group"></i> Series Management</h2>
+                    <div class="tab-controls">
+                        <button id="create-series" class="btn btn-success">
+                            <i class="fas fa-plus"></i> Create Series
+                        </button>
+                        <button id="refresh-series" class="btn btn-primary">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                <div id="series-container" class="content-container">
+                    <div class="loading-spinner">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <p>Loading series...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Corrections Tab -->
+            <section id="corrections-tab" class="tab-content">
+                <div class="tab-header">
+                    <h2><i class="fas fa-edit"></i> Corrections</h2>
+                    <div class="tab-controls">
+                        <button id="export-corrections" class="btn btn-secondary">
+                            <i class="fas fa-download"></i> Export
+                        </button>
+                    </div>
+                </div>
+                <div id="corrections-container" class="content-container">
+                    <div class="corrections-grid">
+                        <!-- Series Corrections -->
+                        <div class="correction-panel">
+                            <h3><i class="fas fa-layer-group"></i> Series Corrections</h3>
+                            <form id="series-correction-form">
+                                <div class="form-group">
+                                    <label for="series-name">Series Name:</label>
+                                    <input type="text" id="series-name" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="instructor-name">Instructor:</label>
+                                    <input type="text" id="instructor-name" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="video-files">Video Files:</label>
+                                    <textarea id="video-files" placeholder="One filename per line" rows="4"></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label for="product-url">Product URL (optional):</label>
+                                    <input type="url" id="product-url" placeholder="https://bjjfanatics.com/products/...">
+                                </div>
+                                <button type="submit" class="btn btn-success">
+                                    <i class="fas fa-save"></i> Submit Series Correction
+                                </button>
+                            </form>
+                        </div>
+
+                        <!-- Product Corrections -->
+                        <div class="correction-panel">
+                            <h3><i class="fas fa-link"></i> Product URL Corrections</h3>
+                            <form id="product-correction-form">
+                                <div class="form-group">
+                                    <label for="video-filename">Video Filename:</label>
+                                    <input type="text" id="video-filename" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="correct-product-url">Correct Product URL:</label>
+                                    <input type="url" id="correct-product-url" required placeholder="https://bjjfanatics.com/products/...">
+                                </div>
+                                <div class="form-group">
+                                    <label for="confidence">Confidence (0-100):</label>
+                                    <input type="number" id="confidence" min="0" max="100" value="95">
+                                </div>
+                                <button type="submit" class="btn btn-success">
+                                    <i class="fas fa-save"></i> Submit Product Correction
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Status Tab -->
+            <section id="status-tab" class="tab-content">
+                <div class="tab-header">
+                    <h2><i class="fas fa-chart-line"></i> System Status</h2>
+                    <div class="tab-controls">
+                        <button id="refresh-status" class="btn btn-primary">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                <div id="status-container" class="content-container">
+                    <div class="status-grid">
+                        <!-- System Overview -->
+                        <div class="status-card">
+                            <h3><i class="fas fa-server"></i> System Overview</h3>
+                            <div class="status-metrics">
+                                <div class="metric">
+                                    <span class="metric-label">Total Videos:</span>
+                                    <span id="total-videos" class="metric-value">-</span>
+                                </div>
+                                <div class="metric">
+                                    <span class="metric-label">Processing:</span>
+                                    <span id="processing-videos" class="metric-value">-</span>
+                                </div>
+                                <div class="metric">
+                                    <span class="metric-label">Completed:</span>
+                                    <span id="completed-videos" class="metric-value">-</span>
+                                </div>
+                                <div class="metric">
+                                    <span class="metric-label">Failed:</span>
+                                    <span id="failed-videos" class="metric-value">-</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Processing Queue -->
+                        <div class="status-card">
+                            <h3><i class="fas fa-tasks"></i> Processing Queue</h3>
+                            <div class="status-metrics">
+                                <div class="metric">
+                                    <span class="metric-label">Active Workers:</span>
+                                    <span id="active-workers" class="metric-value">-</span>
+                                </div>
+                                <div class="metric">
+                                    <span class="metric-label">Queue Size:</span>
+                                    <span id="queue-size" class="metric-value">-</span>
+                                </div>
+                                <div class="metric">
+                                    <span class="metric-label">Uptime:</span>
+                                    <span id="uptime" class="metric-value">-</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Real-time Log -->
+                        <div class="status-card full-width">
+                            <h3><i class="fas fa-terminal"></i> Real-time Updates</h3>
+                            <div id="realtime-log" class="log-container">
+                                <div class="log-entry">
+                                    <span class="log-time">Connecting to WebSocket...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Toast Notifications -->
+        <div id="toast-container" class="toast-container"></div>
+
+        <!-- Modal Dialogs -->
+        <div id="modal-overlay" class="modal-overlay">
+            <div id="modal-content" class="modal-content">
+                <!-- Dynamic modal content -->
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Modules -->
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/websocket.js"></script>
+    <script src="js/components/video-list.js"></script>
+    <script src="js/components/series-manager.js"></script>
+    <script src="js/components/corrections.js"></script>
+    <script src="js/components/status-monitor.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

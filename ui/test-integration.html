@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BJJ Analyzer - Integration Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 0.5rem 1rem;
+            margin: 0.5rem 0;
+            border-radius: 0.25rem;
+            font-weight: bold;
+        }
+        .success { background: #d1fae5; color: #047857; }
+        .error { background: #fee2e2; color: #b91c1c; }
+        .info { background: #dbeafe; color: #1d4ed8; }
+        pre {
+            background: #f8fafc;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            font-size: 0.875rem;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 0.25rem;
+            cursor: pointer;
+            margin-right: 0.5rem;
+        }
+        button:hover { background: #2563eb; }
+        .video-card {
+            background: #f8fafc;
+            padding: 1rem;
+            margin: 0.5rem 0;
+            border-radius: 0.25rem;
+            border-left: 4px solid #3b82f6;
+        }
+    </style>
+</head>
+<body>
+    <h1>🥋 BJJ Video Analyzer - Integration Test</h1>
+    
+    <div class="test-section">
+        <h2>🔌 API Connection Test</h2>
+        <button onclick="testConnection()">Test Connection</button>
+        <button onclick="testAllEndpoints()">Test All Endpoints</button>
+        <div id="connection-status"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>📹 Videos Test</h2>
+        <button onclick="testVideos()">List Videos</button>
+        <button onclick="testVideoDetails()">Test Video Details</button>
+        <div id="videos-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>📚 Series Test</h2>
+        <button onclick="testSeries()">List Series</button>
+        <button onclick="testSeriesDetails()">Test Series Details</button>
+        <div id="series-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>📋 Raw Results</h2>
+        <pre id="raw-output"></pre>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8080/api';
+        
+        function log(message, type = 'info') {
+            const output = document.getElementById('raw-output');
+            const timestamp = new Date().toLocaleTimeString();
+            output.textContent += `[${timestamp}] ${type.toUpperCase()}: ${message}\n`;
+        }
+
+        function showStatus(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        async function testConnection() {
+            try {
+                log('Testing API connection...');
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                
+                showStatus('connection-status', '✅ API is healthy: ' + data.status, 'success');
+                log('Health check response: ' + JSON.stringify(data, null, 2));
+            } catch (error) {
+                showStatus('connection-status', '❌ Connection failed: ' + error.message, 'error');
+                log('Connection error: ' + error.message, 'error');
+            }
+        }
+
+        async function testVideos() {
+            try {
+                log('Fetching videos...');
+                const response = await fetch(`${API_BASE}/videos`);
+                const videos = await response.json();
+                
+                let html = `<h3>Found ${videos.length} videos:</h3>`;
+                videos.forEach(video => {
+                    html += `
+                        <div class="video-card">
+                            <strong>${video.filename}</strong><br>
+                            ID: ${video.id}<br>
+                            Status: ${video.status}<br>
+                            Duration: ${Math.round(video.metadata.duration / 60)}m
+                        </div>
+                    `;
+                });
+                
+                document.getElementById('videos-result').innerHTML = html;
+                log(`Retrieved ${videos.length} videos`);
+            } catch (error) {
+                showStatus('videos-result', '❌ Failed to fetch videos: ' + error.message, 'error');
+                log('Videos error: ' + error.message, 'error');
+            }
+        }
+
+        async function testVideoDetails() {
+            try {
+                // First get the video list
+                const response = await fetch(`${API_BASE}/videos`);
+                const videos = await response.json();
+                
+                if (videos.length === 0) {
+                    showStatus('videos-result', 'No videos found to test', 'info');
+                    return;
+                }
+
+                // Test the first video
+                const videoId = videos[0].id;
+                log(`Testing video details for ID: ${videoId}`);
+                
+                const detailResponse = await fetch(`${API_BASE}/videos/${videoId}`);
+                const video = await detailResponse.json();
+                
+                let html = `<h3>Video Details for: ${video.filename}</h3>`;
+                html += `<pre>${JSON.stringify(video, null, 2)}</pre>`;
+                
+                if (video.chapters && video.chapters.length > 0) {
+                    html += `<h4>Chapters (${video.chapters.length}):</h4>`;
+                    video.chapters.forEach(ch => {
+                        html += `<div>• ${ch.title} @ ${Math.round(ch.timestamp)}s</div>`;
+                    });
+                }
+                
+                document.getElementById('videos-result').innerHTML = html;
+                log(`Video details loaded with ${video.chapters ? video.chapters.length : 0} chapters`);
+            } catch (error) {
+                showStatus('videos-result', '❌ Failed to fetch video details: ' + error.message, 'error');
+                log('Video details error: ' + error.message, 'error');
+            }
+        }
+
+        async function testSeries() {
+            try {
+                log('Fetching series...');
+                const response = await fetch(`${API_BASE}/series`);
+                const series = await response.json();
+                
+                let html = `<h3>Found ${series.length} series:</h3>`;
+                series.forEach(s => {
+                    html += `
+                        <div class="video-card">
+                            <strong>${s.name}</strong> by ${s.instructor}<br>
+                            ID: ${s.id}<br>
+                            Videos: ${s.videos.length}<br>
+                            Completion: ${s.completion_status.percentage}%<br>
+                            ${s.product_url ? `URL: ${s.product_url}` : 'No product URL'}
+                        </div>
+                    `;
+                });
+                
+                document.getElementById('series-result').innerHTML = html;
+                log(`Retrieved ${series.length} series`);
+            } catch (error) {
+                showStatus('series-result', '❌ Failed to fetch series: ' + error.message, 'error');
+                log('Series error: ' + error.message, 'error');
+            }
+        }
+
+        async function testSeriesDetails() {
+            try {
+                // First get the series list
+                const response = await fetch(`${API_BASE}/series`);
+                const seriesList = await response.json();
+                
+                if (seriesList.length === 0) {
+                    showStatus('series-result', 'No series found to test', 'info');
+                    return;
+                }
+
+                // Test the first series
+                const seriesId = seriesList[0].id;
+                log(`Testing series details for ID: ${seriesId}`);
+                
+                const detailResponse = await fetch(`${API_BASE}/series/${seriesId}`);
+                const series = await detailResponse.json();
+                
+                let html = `<h3>Series Details: ${series.name}</h3>`;
+                html += `<pre>${JSON.stringify(series, null, 2)}</pre>`;
+                
+                document.getElementById('series-result').innerHTML = html;
+                log(`Series details loaded with ${series.videos.length} videos`);
+            } catch (error) {
+                showStatus('series-result', '❌ Failed to fetch series details: ' + error.message, 'error');
+                log('Series details error: ' + error.message, 'error');
+            }
+        }
+
+        async function testAllEndpoints() {
+            log('Starting comprehensive API test...');
+            await testConnection();
+            await new Promise(r => setTimeout(r, 500));
+            await testVideos();
+            await new Promise(r => setTimeout(r, 500));
+            await testVideoDetails();
+            await new Promise(r => setTimeout(r, 500));
+            await testSeries();
+            await new Promise(r => setTimeout(r, 500));
+            await testSeriesDetails();
+            log('All tests completed!');
+        }
+
+        // Auto-test on load
+        window.addEventListener('load', () => {
+            testConnection();
+        });
+    </script>
+</body>
+</html>

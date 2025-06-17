@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Series Edit Works</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/components.css">
+    <style>
+        body { padding: 2rem; }
+        .test-section { 
+            background: white; 
+            padding: 1.5rem; 
+            margin: 1rem 0;
+            border-radius: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .series-info { 
+            background: #f0f0f0; 
+            padding: 1rem; 
+            margin: 1rem 0;
+            border-radius: 0.25rem;
+        }
+    </style>
+</head>
+<body>
+    <h1>Series Edit Functionality Test</h1>
+    
+    <div class="test-section">
+        <h2>Test Series Edit</h2>
+        <p>Click the button below to test the series edit modal:</p>
+        <button class="btn btn-primary" onclick="testSeriesEdit()">
+            Test Edit Series Modal
+        </button>
+        <div id="test-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Direct Modal Test</h2>
+        <button class="btn btn-primary" onclick="showTestModal()">
+            Show Test Modal Directly
+        </button>
+    </div>
+
+    <!-- Modal Overlay -->
+    <div id="modal-overlay" class="modal-overlay">
+        <div id="modal-content" class="modal-content"></div>
+    </div>
+
+    <!-- Include required scripts -->
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/websocket.js"></script>
+    <script src="js/components/series-manager.js"></script>
+    
+    <script>
+        // Initialize API and series manager
+        window.api = new ApiClient();
+        let seriesManager;
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            seriesManager = new SeriesManagerComponent();
+            console.log('Series manager initialized');
+        });
+        
+        async function testSeriesEdit() {
+            const resultDiv = document.getElementById('test-result');
+            
+            try {
+                // First get a series ID
+                resultDiv.innerHTML = '<p>Fetching series...</p>';
+                const series = await window.api.getSeries();
+                
+                if (series.length === 0) {
+                    resultDiv.innerHTML = '<p style="color: red;">No series found!</p>';
+                    return;
+                }
+                
+                const firstSeries = series[0];
+                resultDiv.innerHTML = `
+                    <div class="series-info">
+                        <h3>Testing edit for series:</h3>
+                        <p><strong>ID:</strong> ${firstSeries.id}</p>
+                        <p><strong>Name:</strong> ${firstSeries.name}</p>
+                        <p><strong>Instructor:</strong> ${firstSeries.instructor}</p>
+                    </div>
+                `;
+                
+                // Now test the edit function
+                console.log('Calling editSeries with ID:', firstSeries.id);
+                await seriesManager.editSeries(firstSeries.id);
+                
+            } catch (error) {
+                console.error('Error:', error);
+                resultDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+        
+        function showTestModal() {
+            const modal = document.getElementById('modal-overlay');
+            const content = document.getElementById('modal-content');
+            
+            content.innerHTML = `
+                <div class="modal-header">
+                    <h3>Test Modal</h3>
+                    <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').classList.remove('active')">
+                        Close
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p>If you can see this, the modal system is working!</p>
+                </div>
+            `;
+            
+            modal.classList.add('active');
+        }
+        
+        // Test if getSeriesById exists
+        window.addEventListener('load', () => {
+            console.log('API methods available:', Object.getOwnPropertyNames(Object.getPrototypeOf(window.api)));
+        });
+    </script>
+</body>
+</html>
