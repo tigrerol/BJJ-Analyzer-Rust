@@ -17,6 +17,9 @@ pub struct Config {
     /// LLM correction settings
     pub llm: LLMConfig,
     
+    /// Chapter detection settings
+    pub chapters: ChapterConfig,
+    
     /// Output and storage settings
     pub output: OutputConfig,
     
@@ -252,6 +255,22 @@ pub struct PromptConfig {
     pub whisper_transcription_file: String,
 }
 
+/// Configuration for chapter detection
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChapterConfig {
+    /// Enable chapter detection
+    pub enable_detection: bool,
+    
+    /// Directory for chapter files
+    pub chapters_dir: PathBuf,
+    
+    /// HTTP request timeout in seconds
+    pub request_timeout_seconds: u64,
+    
+    /// Maximum number of chapters expected per video
+    pub max_chapters: usize,
+}
+
 impl PromptConfig {
     /// Load prompt content from a specific file
     pub async fn load_prompt(&self, filename: &str) -> Result<String> {
@@ -473,6 +492,12 @@ impl Default for Config {
                     mermaid_flowchart_file: "mermaid_flowchart.txt".to_string(),
                     whisper_transcription_file: "whisper_transcription.txt".to_string(),
                 },
+            },
+            chapters: ChapterConfig {
+                enable_detection: true,
+                chapters_dir: PathBuf::from("chapters"),
+                request_timeout_seconds: 30,
+                max_chapters: 100,
             },
             output: OutputConfig {
                 base_dir: PathBuf::from("./output"),

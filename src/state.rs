@@ -36,7 +36,7 @@ pub struct VideoProcessingState {
 }
 
 /// Processing stages in the BJJ video analysis pipeline
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ProcessingStage {
     /// Video analysis and validation
     VideoAnalysis,
@@ -52,6 +52,9 @@ pub enum ProcessingStage {
     
     /// LLM-based transcription correction
     LLMCorrection,
+    
+    /// Chapter detection and extraction
+    ChapterDetection,
     
     /// SRT subtitle generation
     SubtitleGeneration,
@@ -105,6 +108,9 @@ pub struct ProcessingMetadata {
     
     /// LLM corrections applied
     pub corrections_applied: Option<usize>,
+    
+    /// Number of chapters detected
+    pub chapters_detected: Option<usize>,
     
     /// Processing time for each stage (seconds)
     pub stage_times: HashMap<ProcessingStage, f64>,
@@ -309,12 +315,93 @@ impl StateManager {
             ProcessingStage::AudioExtraction => ProcessingStage::AudioEnhancement,
             ProcessingStage::AudioEnhancement => ProcessingStage::Transcription,
             ProcessingStage::Transcription => ProcessingStage::LLMCorrection,
-            ProcessingStage::LLMCorrection => ProcessingStage::SubtitleGeneration,
+            ProcessingStage::LLMCorrection => ProcessingStage::ChapterDetection,
+            ProcessingStage::ChapterDetection => ProcessingStage::SubtitleGeneration,
             ProcessingStage::SubtitleGeneration => ProcessingStage::Completed,
             ProcessingStage::Completed => ProcessingStage::Completed,
         }
     }
     
+    /// Reset specific processing stages for a video (force re-processing)
+    pub async fn reset_stages(&self, video_path: &Path, stages_to_reset: &[ProcessingStage]) -> Result<()> {
+        
+        // Get current state
+        let mut state = match self.get_or_create_state(video_path).await {
+            Ok(state) => state,
+            Err(_) => return Ok(()), // No state to reset
+        };
+        
+        // Remove the specified stages from completed stages
+        state.completed_stages.retain(|stage| !stages_to_reset.contains(stage));
+        
+        // Reset current stage to the earliest stage that was reset
+        if let Some(earliest_reset_stage) = stages_to_reset.iter().min() {
+            state.current_stage = earliest_reset_stage.clone();
+        }
+        
+        // Update timestamps
+        state.last_updated = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_secs();
+        
+        // Update both cache and disk
+        self.update_state(state).await?;
+        
+        info!("🔄 Reset stages {:?} for: {}", stages_to_reset, video_path.display());
+        Ok(())
+    }
+    
+    /// Reset chapter detection specifically (common use case)
+    pub async fn reset_chapter_detection(&self, video_path: &Path) -> Result<()> {
+        self.reset_stages(video_path, &[ProcessingStage::ChapterDetection]).await
+    }
+    
+    /// Reset all states for a video (complete restart)
+    pub async fn reset_all_stages(&self, video_path: &Path) -> Result<()> {
+        let key = self.generate_state_key(video_path);
+        
+        // Remove from cache
+        self.state_cache.write().await.remove(&key);
+        
+        // Remove state file from disk
+        let filename = format!("{}.json", 
+            video_path.file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .replace(' ', "_")
+                .replace('.', "_"));
+        
+        let state_file_path = self.state_dir.join(filename);
+        if state_file_path.exists() {
+            fs::remove_file(&state_file_path).await?;
+        }
+        
+        info!("🗑️ Reset all stages for: {}", video_path.display());
+        Ok(())
+    }
+    
+    /// Reset states for all videos in a directory
+    pub async fn reset_all_videos(&self) -> Result<usize> {
+        let mut reset_count = 0;
+        
+        // Clear cache
+        self.state_cache.write().await.clear();
+        
+        // Remove all state files
+        let mut entries = fs::read_dir(&self.state_dir).await?;
+        while let Some(entry) = entries.next_entry().await? {
+            let path = entry.path();
+            if path.extension().map_or(false, |ext| ext == "json") {
+                if fs::remove_file(&path).await.is_ok() {
+                    reset_count += 1;
+                }
+            }
+        }
+        
+        info!("🧹 Reset {} video states", reset_count);
+        Ok(reset_count)
+    }
+
     /// Get processing statistics
     pub async fn get_statistics(&self) -> Result<StateManagerStats> {
         let cache = self.state_cache.read().await;

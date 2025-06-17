@@ -12,6 +12,7 @@ mod bjj;
 mod transcription;
 mod llm;
 mod state;
+mod chapters;
 
 use crate::config::Config;
 use crate::processing::BatchProcessor;
@@ -44,7 +45,7 @@ async fn main() -> Result<()> {
                 .long("video-dir")
                 .value_name("DIR")
                 .help("Directory containing videos to process")
-                .required(true)
+                .required_unless_present("clear-cache")
         )
         .arg(
             Arg::new("output-dir")
@@ -69,9 +70,44 @@ async fn main() -> Result<()> {
                 .help("Enable verbose logging")
                 .action(clap::ArgAction::SetTrue)
         )
+        .arg(
+            Arg::new("clear-cache")
+                .long("clear-cache")
+                .help("Clear all chapter cache files and exit")
+                .action(clap::ArgAction::SetTrue)
+        )
+        .arg(
+            Arg::new("reset-chapters")
+                .long("reset-chapters")
+                .help("Reset chapter detection state to force re-scraping")
+                .action(clap::ArgAction::SetTrue)
+        )
         .get_matches();
 
-    let video_dir = PathBuf::from(matches.get_one::<String>("video-dir").unwrap());
+    let clear_cache = matches.get_flag("clear-cache");
+    let reset_chapters = matches.get_flag("reset-chapters");
+    
+    // Handle cache clearing first
+    if clear_cache {
+        info!("🧹 Clearing chapter files...");
+        use crate::chapters::ChapterDetector;
+        
+        let detector = ChapterDetector::new().await?;
+        let files = detector.list_chapter_files().await.unwrap_or_default();
+        let mut cleared_count = 0;
+        
+        for file_path in files {
+            if tokio::fs::remove_file(&file_path).await.is_ok() {
+                cleared_count += 1;
+                info!("🗑️ Removed: {}", file_path.display());
+            }
+        }
+        
+        info!("✅ Cleared {} chapter files", cleared_count);
+        return Ok(());
+    }
+
+    let video_dir = PathBuf::from(matches.get_one::<String>("video-dir").unwrap_or(&".".to_string()));
     let output_dir = PathBuf::from(matches.get_one::<String>("output-dir").unwrap());
     let workers: usize = matches.get_one::<String>("workers").unwrap().parse()?;
     let verbose = matches.get_flag("verbose");
@@ -105,6 +141,13 @@ async fn main() -> Result<()> {
 
     // Initialize batch processor
     let processor = BatchProcessor::new(config, workers).await?;
+    
+    // Handle chapter state reset if requested
+    if reset_chapters {
+        info!("🔄 Resetting chapter detection state for all videos...");
+        let reset_count = processor.reset_chapter_detection_state(&video_dir).await?;
+        info!("✅ Reset chapter detection state for {} videos", reset_count);
+    }
 
     // Start processing
     let start_time = std::time::Instant::now();

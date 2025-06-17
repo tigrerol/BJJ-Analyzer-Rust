@@ -12,6 +12,7 @@ use crate::audio::{AudioExtractor, AudioInfo};
 use crate::bjj::BJJDictionary;
 use crate::transcription::{WhisperTranscriber, TranscriptionResult};
 use crate::state::{StateManager, ProcessingStage as StateProcessingStage};
+use crate::chapters::{ChapterDetector, ChapterInfo, ChapterDetectionConfig};
 
 /// Processing result for a single video
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -21,6 +22,7 @@ pub struct VideoProcessingResult {
     pub transcription_result: Option<TranscriptionResult>,
     pub srt_path: Option<PathBuf>,
     pub text_path: Option<PathBuf>,
+    pub chapters: Vec<ChapterInfo>,
     pub processing_time: Duration,
     pub status: ProcessingStatus,
     pub error_message: Option<String>,
@@ -55,6 +57,7 @@ pub enum ProcessingStage {
     TranscriptionPrep,
     Transcription,
     LLMCorrection,
+    ChapterDetection,
     TranscriptionPost,
     Completed,
 }
@@ -66,6 +69,7 @@ pub struct BatchProcessor {
     audio_extractor: AudioExtractor,
     whisper_transcriber: WhisperTranscriber,
     bjj_dictionary: BJJDictionary,
+    chapter_detector: ChapterDetector,
     worker_semaphore: Arc<Semaphore>,
     max_concurrent: usize,
 }
@@ -100,6 +104,15 @@ impl BatchProcessor {
             bjj_dictionary.clone(),
         );
 
+        // Initialize chapter detector
+        let chapter_config = ChapterDetectionConfig {
+            enable_detection: config.chapters.enable_detection,
+            chapters_dir: config.chapters.chapters_dir.clone(),
+            request_timeout_seconds: config.chapters.request_timeout_seconds,
+            max_chapters: config.chapters.max_chapters,
+        };
+        let chapter_detector = ChapterDetector::with_config(chapter_config).await?;
+
         info!("📚 BJJ Dictionary loaded: {} terms, {} corrections", 
               bjj_dictionary.get_stats().total_terms,
               bjj_dictionary.get_stats().total_corrections);
@@ -112,6 +125,7 @@ impl BatchProcessor {
             audio_extractor: AudioExtractor::new(),
             whisper_transcriber,
             bjj_dictionary,
+            chapter_detector,
             worker_semaphore: Arc::new(Semaphore::new(max_workers)),
             max_concurrent: max_workers,
         })
@@ -252,8 +266,40 @@ impl BatchProcessor {
             audio_extractor: AudioExtractor::new(),
             whisper_transcriber: self.whisper_transcriber.clone(),
             bjj_dictionary: self.bjj_dictionary.clone(),
+            chapter_detector: self.chapter_detector.clone(),
             state_manager,
         }
+    }
+
+    /// Reset chapter detection state for all videos in a directory
+    pub async fn reset_chapter_detection_state(&self, input_dir: &PathBuf) -> Result<usize> {
+        let state_dir = input_dir.join(".bjj_analyzer_state");
+        let state_manager = StateManager::new(state_dir).await?;
+        
+        // Discover videos in the directory
+        let videos = self.video_processor.discover_videos(input_dir).await?;
+        let mut reset_count = 0;
+        
+        for video_path in videos {
+            if let Ok(mut state) = state_manager.get_or_create_state(&video_path).await {
+                // Check if ChapterDetection was completed
+                let had_chapter_detection = state.completed_stages.contains(&StateProcessingStage::ChapterDetection);
+                
+                if had_chapter_detection {
+                    // Remove ChapterDetection from completed stages
+                    state.completed_stages.retain(|stage| stage != &StateProcessingStage::ChapterDetection);
+                    state.metadata.chapters_detected = None;
+                    
+                    // Update the state
+                    state_manager.update_state(state).await?;
+                    reset_count += 1;
+                    
+                    info!("🔄 Reset chapter detection state for: {}", video_path.file_name().unwrap_or_default().to_string_lossy());
+                }
+            }
+        }
+        
+        Ok(reset_count)
     }
 
     /// Get processing statistics
@@ -273,6 +319,7 @@ struct ProcessorState {
     audio_extractor: AudioExtractor,
     whisper_transcriber: WhisperTranscriber,
     bjj_dictionary: BJJDictionary,
+    chapter_detector: ChapterDetector,
     state_manager: StateManager,
 }
 
@@ -305,6 +352,7 @@ impl ProcessorState {
             transcription_result: None,
             srt_path: None,
             text_path: None,
+            chapters: Vec::new(),
             processing_time: Duration::from_secs(0),
             status: ProcessingStatus::InProgress,
             error_message: None,
@@ -314,6 +362,7 @@ impl ProcessorState {
                 StateProcessingStage::AudioEnhancement => ProcessingStage::AudioEnhancement,
                 StateProcessingStage::Transcription => ProcessingStage::Transcription,
                 StateProcessingStage::LLMCorrection => ProcessingStage::LLMCorrection,
+                StateProcessingStage::ChapterDetection => ProcessingStage::ChapterDetection,
                 StateProcessingStage::SubtitleGeneration => ProcessingStage::TranscriptionPost,
                 StateProcessingStage::Completed => ProcessingStage::Completed,
             }).collect(),
@@ -580,6 +629,57 @@ impl ProcessorState {
             }
         }
 
+        // Stage 5: Chapter Detection (always run - uses internal file-based caching)
+        if true {
+            info!("🔍 Starting chapter detection for: {}", result.video_info.filename);
+            let stage_start = Instant::now();
+            
+            match self.chapter_detector.detect_chapters(video_path).await {
+                Ok(chapters) => {
+                    let chapter_count = chapters.len();
+                    if chapter_count > 0 {
+                        info!("📚 Found {} chapters for {}", chapter_count, result.video_info.filename);
+                        
+                        // Validate chapters against video duration
+                        let validated_chapters = self.chapter_detector.validate_chapters(
+                            &chapters, 
+                            result.video_info.duration.as_secs_f64()
+                        );
+                        
+                        result.chapters = validated_chapters.clone();
+                        state.metadata.chapters_detected = Some(validated_chapters.len());
+                        
+                        // Log first few chapters for debugging
+                        for (i, chapter) in validated_chapters.iter().take(3).enumerate() {
+                            debug!("Chapter {}: {} at {}s", i + 1, chapter.title, chapter.timestamp);
+                        }
+                        if validated_chapters.len() > 3 {
+                            debug!("... and {} more chapters", validated_chapters.len() - 3);
+                        }
+                    } else {
+                        info!("📭 No chapters found for {}", result.video_info.filename);
+                        state.metadata.chapters_detected = Some(0);
+                    }
+                    
+                    self.state_manager.mark_stage_completed(&mut state, StateProcessingStage::ChapterDetection, stage_start.elapsed().as_secs_f64());
+                    self.state_manager.update_state(state.clone()).await?;
+                }
+                Err(e) => {
+                    warn!("⚠️ Chapter detection failed for {}: {}", result.video_info.filename, e);
+                    state.metadata.chapters_detected = Some(0);
+                    self.state_manager.mark_stage_completed(&mut state, StateProcessingStage::ChapterDetection, stage_start.elapsed().as_secs_f64());
+                    self.state_manager.update_state(state.clone()).await?;
+                }
+            }
+        } else {
+            info!("⏭️  Skipping chapter detection (already completed)");
+            // Load chapters from state if available
+            if let Some(chapter_count) = state.metadata.chapters_detected {
+                info!("📚 Loaded {} chapters from cache", chapter_count);
+                // In a full implementation, we would load actual chapter data from cache
+            }
+        }
+
         // Mark as completed
         self.state_manager.mark_stage_completed(&mut state, StateProcessingStage::Completed, 0.0);
         state.metadata.total_processing_time = start_time.elapsed().as_secs_f64();
@@ -593,6 +693,7 @@ impl ProcessorState {
             StateProcessingStage::AudioEnhancement => ProcessingStage::AudioEnhancement,
             StateProcessingStage::Transcription => ProcessingStage::Transcription,
             StateProcessingStage::LLMCorrection => ProcessingStage::LLMCorrection,
+            StateProcessingStage::ChapterDetection => ProcessingStage::ChapterDetection,
             StateProcessingStage::SubtitleGeneration => ProcessingStage::TranscriptionPost,
             StateProcessingStage::Completed => ProcessingStage::Completed,
         }).collect();

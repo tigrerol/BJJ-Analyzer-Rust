@@ -143,6 +143,53 @@ When LLM correction is enabled:
 4. Saves corrected versions as main files
 5. Updates state with correction metadata
 
+## Chapter File Management
+
+The system uses a simple file-based approach for chapter data to avoid cache complexity:
+
+### How It Works
+1. **Chapter files** are stored in `chapters/` directory as `.txt` files
+2. **Naming convention**: `{series}_by_{instructor}_chapters.txt`
+3. **Automatic behavior**: If file exists, load chapters; if not, scrape from BJJfanatics
+4. **No complex cache**: Simple file presence check
+
+### Chapter File Examples
+```
+chapters/
+├── closed_guard_reintroduced_by_adam_wardzinski_chapters.txt
+├── back_attacks_by_john_danaher_chapters.txt
+└── half_guard_by_bernardo_faria_chapters.txt
+```
+
+### Force Re-scraping
+To force fresh chapter data, simply delete the chapter file:
+
+```bash
+# Delete specific series chapters (force re-scraping for that series)
+rm chapters/closed_guard_reintroduced_by_adam_wardzinski_chapters.txt
+
+# Delete all chapter files (force complete re-scraping)
+rm chapters/*_chapters.txt
+
+# Reset video processing state if needed
+cargo run --bin cache-manager -- reset-chapter-state "ClosedGuardReintroducedbyAdamWardzinski1.mp4"
+```
+
+### Simple Workflow
+```bash
+# 1. Delete chapter file to force fresh data
+rm chapters/series_name_chapters.txt
+
+# 2. Run analyzer - automatically re-scrapes
+cargo run -- --video-dir "/path/to/videos"
+```
+
+**Benefits:**
+- **No cache complexity** - just file presence check
+- **Easy to understand** - see exactly what's cached
+- **Simple management** - delete file to force re-scraping
+- **No TTL confusion** - files persist until manually deleted
+
 ## Important Notes
 
 - **Cargo PATH**: Always ensure `~/.cargo/bin` is in PATH for build commands
@@ -150,6 +197,7 @@ When LLM correction is enabled:
 - **State location**: States persist in input directory, not output directory
 - **Parallel safety**: All state operations are thread-safe
 - **Resume capability**: Can restart processing from any interrupted stage
+- **Cache management**: Use cache-manager binary to control chapter cache behavior
 
 ## Debugging
 

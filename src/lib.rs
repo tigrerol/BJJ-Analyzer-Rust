@@ -12,6 +12,7 @@ pub mod bjj;
 pub mod transcription;
 pub mod llm;
 pub mod state;
+pub mod chapters;
 
 #[cfg(feature = "python-bindings")]
 pub mod python_bridge;
@@ -26,6 +27,7 @@ pub use crate::transcription::{WhisperTranscriber, TranscriptionResult, SRTGener
 pub use crate::llm::{LLMConfig, LLMProvider};
 pub use crate::llm::correction::TranscriptionCorrector;
 pub use crate::state::{StateManager, VideoProcessingState, ProcessingStage};
+pub use crate::chapters::{ChapterDetector, ChapterInfo};
 
 // Re-export Python bindings if feature is enabled
 #[cfg(feature = "python-bindings")]
