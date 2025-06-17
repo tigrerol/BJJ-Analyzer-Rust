@@ -7,13 +7,17 @@ pub mod video;
 pub mod audio;
 pub mod processing;
 pub mod config;
-pub mod api;
 pub mod bjj;
 pub mod transcription;
 pub mod llm;
 pub mod state;
 pub mod chapters;
-pub mod series;
+
+#[cfg(feature = "api")]
+pub mod api;
+
+// series module not yet implemented
+// pub mod series;
 
 #[cfg(feature = "python-bindings")]
 pub mod python_bridge;

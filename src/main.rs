@@ -7,13 +7,13 @@ mod video;
 mod audio;
 mod processing;
 mod config;
-mod transcription_api;
+// mod transcription_api; // not yet implemented
 mod bjj;
 mod transcription;
 mod llm;
 mod state;
 mod chapters;
-mod series;
+// mod series; // not yet implemented
 
 #[cfg(feature = "api")]
 mod api;
