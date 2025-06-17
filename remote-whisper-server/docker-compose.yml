@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  whisper-gpu:
+    build: .
+    container_name: whisper-gpu-server
+    ports:
+      - "8080:8080"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8080
+      - WORKERS=1
+      - DEFAULT_MODEL=base
+    volumes:
+      # Optional: Mount local directory for model persistence
+      - whisper_models:/home/whisper/models
+      # Optional: Mount for temporary files (improves performance)
+      - /tmp/whisper:/home/whisper/temp
+    restart: unless-stopped
+    
+    # GPU configuration for NVIDIA
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8080/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  whisper_models:
+    driver: local

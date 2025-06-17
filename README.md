@@ -21,6 +21,8 @@ High-performance Brazilian Jiu-Jitsu video analysis and processing system writte
 
 ### Transcription Integration
 - **Multiple Providers**: OpenAI, AssemblyAI, Google Cloud, Azure, Local Whisper
+- **🆕 Remote GPU Whisper**: Offload transcription to dedicated GPU server (5-10x faster)
+- **Automatic Fallback**: Remote → Local → Error with configurable fallback
 - **Retry Logic**: Automatic retry with exponential backoff
 - **Quality Optimization**: Audio preprocessing for better transcription accuracy
 - **Chunking Support**: Large file handling with intelligent segmentation
@@ -126,6 +128,30 @@ log_level = "info"
 save_metadata = true
 export_formats = ["JSON"]
 ```
+
+### 🚀 Remote GPU Transcription
+
+For maximum performance, use a dedicated GPU server for transcription:
+
+```bash
+# 1. Start GPU server (on machine with NVIDIA GPU)
+cd remote-whisper-server/
+./deploy.sh start
+
+# 2. Configure client to use remote server
+cp config/remote-gpu-example.toml config/bjj-analyzer.toml
+
+# 3. Process videos (5-10x faster!)
+cargo run -- --video-dir ./videos
+```
+
+**Benefits:**
+- **5-10x faster** transcription with GPU acceleration
+- **Support for larger models** (large-v3) requiring more GPU memory
+- **Automatic fallback** to local processing if remote unavailable
+- **Lightweight Docker container** (~500MB) for easy deployment
+
+See [REMOTE_GPU_SETUP.md](./REMOTE_GPU_SETUP.md) for detailed setup instructions.
 
 ### Python Integration
 

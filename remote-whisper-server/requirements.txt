@@ -1,0 +1,13 @@
+# Core dependencies
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+pydantic==2.5.0
+
+# Whisper and ML dependencies
+openai-whisper==20231117
+torch==2.1.1
+torchaudio==2.1.1
+
+# Optional: for better performance
+numpy==1.24.3
