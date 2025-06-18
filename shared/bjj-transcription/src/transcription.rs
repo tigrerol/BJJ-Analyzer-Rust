@@ -189,11 +189,11 @@ impl WhisperTranscriber {
         // Build Whisper.cpp command
         let mut cmd = tokio::process::Command::new("whisper-cli");
         
-        // Basic arguments
+        // Basic arguments - output both text and JSON files
         cmd.args([
             "-f", audio_info.path().to_str().ok_or_else(|| TranscriptionError::Transcription("Invalid audio path".to_string()))?,
-            "-oj", // Output JSON
-            "-np", // No prints (only results)
+            "-otxt", // Output text file
+            "-oj",   // Output JSON file
         ]);
         
         // Model path resolution for whisper-cli
@@ -223,15 +223,39 @@ impl WhisperTranscriber {
         
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            tracing::error!("Whisper stderr: {}", stderr);
+            tracing::error!("Whisper stdout: {}", stdout);
             return Err(TranscriptionError::Whisper(format!("Whisper failed: {}", stderr)));
         }
         
-        // Parse Whisper JSON output
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        tracing::debug!("Whisper stdout: {}", stdout);
+        tracing::debug!("Whisper stderr: {}", stderr);
+        
+        // Parse Whisper JSON output from file (created by -oj)
         let output_stem = audio_info.path().with_extension("");
         let json_path = format!("{}.json", output_stem.to_string_lossy());
         let json_path = std::path::Path::new(&json_path);
         
+        tracing::debug!("Expected JSON path: {}", json_path.display());
+        tracing::debug!("JSON path exists: {}", json_path.exists());
+        
         if !json_path.exists() {
+            // List files in the directory to see what was actually created
+            if let Some(parent) = json_path.parent() {
+                if let Ok(entries) = std::fs::read_dir(parent) {
+                    tracing::debug!("Files in directory:");
+                    for entry in entries.flatten() {
+                        if let Some(name) = entry.file_name().to_str() {
+                            if name.contains(&audio_info.path().file_stem().unwrap().to_string_lossy().to_string()) {
+                                tracing::debug!("  - {}", name);
+                            }
+                        }
+                    }
+                }
+            }
             return Err(TranscriptionError::Transcription(format!("Whisper JSON output not found: {}", json_path.display())));
         }
         
@@ -239,29 +263,37 @@ impl WhisperTranscriber {
         let whisper_result: serde_json::Value = serde_json::from_str(&json_content)
             .map_err(|e| TranscriptionError::Transcription(format!("Failed to parse Whisper JSON: {}", e)))?;
         
-        // Extract text and segments
-        let text = whisper_result["text"]
-            .as_str()
-            .unwrap_or("")
-            .trim()
-            .to_string();
-            
-        let language = whisper_result["language"]
+        // Extract text and segments from whisper-cli JSON format
+        let language = whisper_result["result"]["language"]
             .as_str()
             .map(|s| s.to_string());
         
-        let segments: Vec<TranscriptionSegment> = whisper_result["segments"]
+        let empty_vec = Vec::new();
+        let transcription_array = whisper_result["transcription"]
             .as_array()
-            .unwrap_or(&Vec::new())
+            .unwrap_or(&empty_vec);
+        
+        // Combine all text segments
+        let text = transcription_array
+            .iter()
+            .filter_map(|segment| segment["text"].as_str())
+            .collect::<Vec<&str>>()
+            .join("")
+            .trim()
+            .to_string();
+        
+        let segments: Vec<TranscriptionSegment> = transcription_array
             .iter()
             .enumerate()
             .filter_map(|(id, segment)| {
-                let start = segment["start"].as_f64()?;
-                let end = segment["end"].as_f64()?;
+                let start_ms = segment["offsets"]["from"].as_u64()?;
+                let end_ms = segment["offsets"]["to"].as_u64()?;
                 let text = segment["text"].as_str()?.trim().to_string();
                 
                 if !text.is_empty() {
-                    Some(TranscriptionSegment::new(id as u32, start, end, text))
+                    let start_secs = start_ms as f64 / 1000.0;
+                    let end_secs = end_ms as f64 / 1000.0;
+                    Some(TranscriptionSegment::new(id as u32, start_secs, end_secs, text))
                 } else {
                     None
                 }
@@ -277,7 +309,7 @@ impl WhisperTranscriber {
             text.len()
         );
         
-        // Clean up JSON file
+        // Clean up temporary files that whisper-cli creates
         let _ = tokio::fs::remove_file(&json_path).await;
         
         let result = TranscriptionResult::new(
@@ -378,7 +410,7 @@ impl WhisperTranscriber {
     fn add_model_args(&self, cmd: &mut tokio::process::Command) -> Result<()> {
         let model_paths = [
             &format!("models/ggml-{}.bin", self.config.model()),
-            "models/ggml-tiny.bin", // Fallback to tiny model
+            "models/ggml-tiny.bin", // Our downloaded tiny model
             "models/ggml-base.bin", // Fallback to base model
             "/usr/local/share/whisper-cpp/ggml-base.bin",
             "/opt/homebrew/share/whisper-cpp/ggml-base.bin", 

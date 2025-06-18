@@ -1,0 +1,38 @@
+# Docker ignore file for transcription worker
+
+# Build artifacts
+target/
+Cargo.lock
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Test files
+test_files/
+test_output/
+
+# Environment files
+.env
+.env.local
+
+# Documentation
+README.md
+docs/
+
+# Git
+.git/
+.gitignore
+
+# Temporary files
+tmp/
+temp/

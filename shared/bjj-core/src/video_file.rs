@@ -122,20 +122,35 @@ impl VideoFile {
     /// Detect current processing stage based on existing artifacts
     async fn detect_processing_stage(&self) -> ProcessingStage {
         // Check artifacts in reverse order (most complete first)
-        if self.has_subtitles() {
-            if self.has_corrected_transcript() {
-                ProcessingStage::Completed
-            } else {
-                ProcessingStage::SubtitlesGenerated
-            }
-        } else if self.has_corrected_transcript() {
+        // But also check if files have meaningful content (not just empty files)
+        
+        if self.has_corrected_transcript() && self.has_subtitles() && self.is_file_meaningful(&self.corrected_transcript_path()).await {
+            ProcessingStage::Completed
+        } else if self.has_corrected_transcript() && self.is_file_meaningful(&self.corrected_transcript_path()).await {
             ProcessingStage::LLMCorrected
-        } else if self.has_transcript_artifact() {
+        } else if self.has_transcript_artifact() && self.has_subtitles() && self.is_file_meaningful(&self.transcript_artifact_path()).await {
+            // If we have both transcript and SRT but no corrected transcript, we're ready for LLM correction
+            ProcessingStage::Transcribed
+        } else if self.has_transcript_artifact() && self.is_file_meaningful(&self.transcript_artifact_path()).await {
             ProcessingStage::Transcribed
         } else if self.has_audio_artifact() {
             ProcessingStage::AudioExtracted
         } else {
             ProcessingStage::Pending
+        }
+    }
+    
+    /// Check if a file exists and has meaningful content (not empty or very small)
+    async fn is_file_meaningful(&self, path: &Path) -> bool {
+        if !path.exists() {
+            return false;
+        }
+        
+        if let Ok(metadata) = fs::metadata(path).await {
+            // Consider a file meaningful if it has more than 10 bytes
+            metadata.len() > 10
+        } else {
+            false
         }
     }
     

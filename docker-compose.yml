@@ -1,0 +1,98 @@
+# Docker Compose for BJJ Transcription Worker
+# Includes GPU support and volume mounting for video processing
+
+version: '3.8'
+
+services:
+  transcription-worker:
+    build:
+      context: .
+      dockerfile: transcription-worker/Dockerfile
+      target: runtime
+    image: bjj-transcription-worker:latest
+    container_name: bjj-transcription-worker
+    
+    # GPU support (uncomment for NVIDIA GPU)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    
+    # Volume mounts
+    volumes:
+      # Mount video directory (replace with your actual path)
+      - ${VIDEO_DIR:-./test_videos}:/app/videos:ro
+      # Mount output directory
+      - ${OUTPUT_DIR:-./output}:/app/output:rw
+      # Mount models directory for whisper models
+      - ${MODELS_DIR:-./models}:/app/models:rw
+      # Optional: mount config
+      - ${CONFIG_DIR:-./config}:/app/config:ro
+    
+    # Environment variables
+    environment:
+      - RUST_LOG=${RUST_LOG:-info}
+      - RUST_BACKTRACE=${RUST_BACKTRACE:-1}
+      # LLM API configuration (optional)
+      - LLM_ENDPOINT=${LLM_ENDPOINT:-http://host.docker.internal:1234/v1/chat/completions}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+    
+    # Network configuration
+    network_mode: bridge
+    
+    # Add host network access for LMStudio (running on host)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 8G
+        reservations:
+          cpus: '2.0'
+          memory: 4G
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Default command (override as needed)
+    command: [
+      "/usr/local/bin/bjj-transcription-worker",
+      "--video-dir", "/app/videos",
+      "--batch-size", "5",
+      "--verbose"
+    ]
+
+  # Optional: Run with GPU support (NVIDIA)
+  transcription-worker-gpu:
+    extends:
+      service: transcription-worker
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    profiles:
+      - gpu
+
+  # Development service for testing
+  transcription-worker-dev:
+    extends:
+      service: transcription-worker
+    command: [
+      "/usr/local/bin/bjj-transcription-worker",
+      "--video-dir", "/app/videos",
+      "--batch-size", "1",
+      "--dry-run",
+      "--verbose"
+    ]
+    profiles:
+      - dev

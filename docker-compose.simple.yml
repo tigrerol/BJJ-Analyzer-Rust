@@ -1,0 +1,68 @@
+# Simple Docker Compose for BJJ Transcription Worker
+# Relies on host system for whisper.cpp and models
+
+version: '3.8'
+
+services:
+  transcription-worker:
+    build:
+      context: .
+      dockerfile: transcription-worker/Dockerfile.simple
+    image: bjj-transcription-worker:simple
+    container_name: bjj-transcription-worker-simple
+    
+    # Volume mounts
+    volumes:
+      # Mount video directory (replace with your actual path)
+      - ${VIDEO_DIR:-/Users/rolandlechner/SW Development/Test Files}:/app/videos:ro
+      # Mount output directory
+      - ${OUTPUT_DIR:-./output}:/app/output:rw
+      # Mount host whisper binary and models
+      - /usr/local/bin/whisper-cli:/usr/local/bin/whisper-cli:ro
+      - ${HOST_MODELS_DIR:-./models}:/app/models:ro
+    
+    # Environment variables
+    environment:
+      - RUST_LOG=${RUST_LOG:-info}
+      - RUST_BACKTRACE=${RUST_BACKTRACE:-1}
+      # LLM API configuration for host LMStudio
+      - LLM_ENDPOINT=http://host.docker.internal:1234/v1/chat/completions
+    
+    # Network configuration for LMStudio access
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Default command
+    command: [
+      "/usr/local/bin/bjj-transcription-worker",
+      "--video-dir", "/app/videos",
+      "--batch-size", "1",
+      "--verbose"
+    ]
+
+  # Test service for dry run
+  transcription-worker-test:
+    extends:
+      service: transcription-worker
+    command: [
+      "/usr/local/bin/bjj-transcription-worker",
+      "--video-dir", "/app/videos",
+      "--batch-size", "1",
+      "--dry-run",
+      "--verbose"
+    ]
+    profiles:
+      - test

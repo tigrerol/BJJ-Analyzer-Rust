@@ -1,0 +1,59 @@
+# Simplified Docker build for BJJ Transcription Worker
+# Uses host whisper.cpp and minimal dependencies
+
+# Build stage
+FROM rust:1.75-slim as builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app directory
+WORKDIR /usr/src/app
+
+# Copy workspace configuration (Docker-specific without curation-manager)
+COPY Cargo.docker.toml Cargo.toml
+COPY Cargo.lock ./
+
+# Copy all source code
+COPY shared/ shared/
+COPY transcription-worker/ transcription-worker/
+
+# Build the transcription worker in release mode
+RUN cargo build --release --bin bjj-transcription-worker
+
+# Runtime stage - minimal image
+FROM debian:bookworm-slim
+
+# Install minimal runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    ffmpeg \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app user for security
+RUN groupadd -r bjjapp && useradd -r -g bjjapp bjjapp
+
+# Copy built binary from builder stage
+COPY --from=builder /usr/src/app/target/release/bjj-transcription-worker /usr/local/bin/
+
+# Create necessary directories
+RUN mkdir -p /app/videos /app/output /app/models \
+    && chown -R bjjapp:bjjapp /app
+
+# Switch to app user
+USER bjjapp
+WORKDIR /app
+
+# Set environment variables
+ENV RUST_LOG=info
+
+# Health check - test if binary works
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD /usr/local/bin/bjj-transcription-worker --help > /dev/null || exit 1
+
+# Default command - help text
+CMD ["/usr/local/bin/bjj-transcription-worker", "--help"]

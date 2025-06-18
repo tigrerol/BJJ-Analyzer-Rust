@@ -1,0 +1,91 @@
+# GPU-optimized Docker build for BJJ Transcription Worker
+# Designed for CUDA-enabled systems with GPU transcription acceleration
+
+# Build stage with CUDA support
+FROM nvidia/cuda:12.2-devel-ubuntu22.04 as builder
+
+# Install Rust
+RUN apt-get update && apt-get install -y \
+    curl \
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    ffmpeg \
+    wget \
+    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
+    && rm -rf /var/lib/apt/lists/*
+
+# Add cargo to path
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Create app directory
+WORKDIR /usr/src/app
+
+# Copy workspace configuration
+COPY Cargo.toml Cargo.lock ./
+
+# Copy all source code
+COPY shared/ shared/
+COPY transcription-worker/ transcription-worker/
+
+# Build the transcription worker in release mode
+RUN cargo build --release --bin bjj-transcription-worker
+
+# Build whisper.cpp with CUDA support
+WORKDIR /tmp
+RUN git clone https://github.com/ggerganov/whisper.cpp.git \
+    && cd whisper.cpp \
+    && make WHISPER_CUDA=1 -j$(nproc) \
+    && cp whisper-cli /usr/local/bin/ \
+    && chmod +x /usr/local/bin/whisper-cli
+
+# Runtime stage with CUDA runtime
+FROM nvidia/cuda:12.2-runtime-ubuntu22.04
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    ffmpeg \
+    wget \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy whisper-cli from builder
+COPY --from=builder /usr/local/bin/whisper-cli /usr/local/bin/
+
+# Create models directory and download larger model for better accuracy
+RUN mkdir -p /app/models
+WORKDIR /app/models
+
+# Download large model for better accuracy (set via environment variable)
+ARG WHISPER_MODEL=large-v3
+RUN wget -O ggml-${WHISPER_MODEL}.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-${WHISPER_MODEL}.bin || \
+    wget -O ggml-base.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin
+
+# Create app user for security
+RUN groupadd -r bjjapp && useradd -r -g bjjapp bjjapp
+
+# Copy built binary from builder stage
+COPY --from=builder /usr/src/app/target/release/bjj-transcription-worker /usr/local/bin/
+
+# Create necessary directories
+RUN mkdir -p /app/videos /app/output /app/models \
+    && chown -R bjjapp:bjjapp /app
+
+# Switch to app user
+USER bjjapp
+WORKDIR /app
+
+# Set environment variables for GPU optimization
+ENV RUST_LOG=info
+ENV WHISPER_MODEL_PATH=/app/models
+ENV CUDA_VISIBLE_DEVICES=0
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD /usr/local/bin/bjj-transcription-worker --help > /dev/null || exit 1
+
+# Default command
+CMD ["/usr/local/bin/bjj-transcription-worker", "--help"]

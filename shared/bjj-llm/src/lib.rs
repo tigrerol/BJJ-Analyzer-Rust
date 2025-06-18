@@ -36,4 +36,7 @@ pub enum LLMError {
     
     #[error("LLM response error: {0}")]
     ResponseError(String),
+    
+    #[error("Processing error: {0}")]
+    Processing(String),
 }

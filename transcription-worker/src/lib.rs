@@ -228,16 +228,9 @@ impl TranscriptionWorker {
                     if let Some(corrector) = &self.corrector {
                         tracing::info!("Applying LLM correction to {}", current_video.filename());
                         
-                        // Read the actual transcript file
-                        let transcript_path = current_video.transcript_artifact_path();
-                        if transcript_path.exists() {
-                            let transcript_text = tokio::fs::read_to_string(&transcript_path).await
-                                .context("Failed to read transcript file")?;
-                            let _correction_result = corrector.correct(&transcript_text).await
-                                .context("Failed to correct transcript")?;
-                        } else {
-                            tracing::warn!("Transcript file not found, skipping LLM correction");
-                        }
+                        // Apply corrections to both .txt and .srt files simultaneously
+                        corrector.correct_transcript_files(current_video.video_path()).await
+                            .context("Failed to apply LLM corrections")?;
                     } else {
                         tracing::info!("LLM correction disabled, skipping to subtitles");
                     }
