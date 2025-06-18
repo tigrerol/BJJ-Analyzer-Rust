@@ -1,0 +1,64 @@
+# Windows-optimized Dockerfile for BJJ Transcription Worker
+# Addresses common Windows/Linux compatibility issues
+
+# Build stage - using specific platform
+FROM --platform=linux/amd64 rust:1.75-slim as builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app directory
+WORKDIR /usr/src/app
+
+# Copy workspace configuration
+COPY Cargo.docker.toml Cargo.toml
+COPY Cargo.lock ./
+
+# Copy all source code with proper line endings
+COPY shared/ shared/
+COPY transcription-worker/ transcription-worker/
+
+# Build the transcription worker in release mode
+RUN cargo build --release --bin bjj-transcription-worker
+
+# Runtime stage - minimal image with explicit platform
+FROM --platform=linux/amd64 debian:bookworm-slim
+
+# Install minimal runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    ffmpeg \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app user for security
+RUN groupadd -r bjjapp && useradd -r -g bjjapp bjjapp
+
+# Copy built binary from builder stage
+COPY --from=builder /usr/src/app/target/release/bjj-transcription-worker /usr/local/bin/
+
+# Create necessary directories with proper permissions
+RUN mkdir -p /app/videos /app/output /app/models \
+    && chown -R bjjapp:bjjapp /app \
+    && chmod -R 755 /app
+
+# Switch to app user
+USER bjjapp
+WORKDIR /app
+
+# Set environment variables
+ENV RUST_LOG=info
+ENV RUST_BACKTRACE=1
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD /usr/local/bin/bjj-transcription-worker --help || exit 1
+
+# Default entrypoint
+ENTRYPOINT ["/usr/local/bin/bjj-transcription-worker"]
+
+# Default command
+CMD ["--help"]
