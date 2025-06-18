@@ -1,0 +1,702 @@
+warning: unused import: `anyhow`
+ --> src/bjj/dictionary.rs:1:14
+  |
+1 | use anyhow::{anyhow, Result};
+  |              ^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused imports: `SearchTerms` and `VideoMetadata`
+ --> src/chapters/detector.rs:2:26
+  |
+2 | use super::{ChapterInfo, SearchTerms, VideoMetadata};
+  |                          ^^^^^^^^^^^  ^^^^^^^^^^^^^
+
+warning: unused import: `Path`
+ --> src/chapters/cache.rs:7:17
+  |
+7 | use std::path::{Path, PathBuf};
+  |                 ^^^^
+
+warning: unused import: `warn`
+ --> src/api/mod.rs:8:21
+  |
+8 | use tracing::{info, warn};
+  |                     ^^^^
+
+warning: unused import: `Response`
+ --> src/api/server.rs:7:36
+  |
+7 |     response::{IntoResponse, Json, Response},
+  |                                    ^^^^^^^^
+
+warning: unused variable: `output_dir`
+  --> src/chapters/scraper.rs:80:87
+   |
+80 | ... &str, video_dir: &Path, output_dir: Option<&Path>) -> Result<Vec<ChapterInfo>> {
+   |                             ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_output_dir`
+   |
+   = note: `#[warn(unused_variables)]` on by default
+
+warning: unused variable: `state_manager`
+  --> src/api/handlers.rs:87:46
+   |
+87 | pub async fn start_multiple_video_processing(state_manager: &Arc<StateManager>, payload: &Value) -> Result<Value> {
+   |                                              ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_state_manager`
+
+warning: unused variable: `payload`
+  --> src/api/handlers.rs:87:81
+   |
+87 | pub async fn start_multiple_video_processing(state_manager: &Arc<StateManager>, payload: &Value) -> Result<Value> {
+   |                                                                                 ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_payload`
+
+warning: field `audio_extractor` is never read
+  --> src/processing.rs:71:5
+   |
+68 | pub struct BatchProcessor {
+   |            -------------- field in this struct
+...
+71 |     audio_extractor: AudioExtractor,
+   |     ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` on by default
+
+warning: field `bjj_dictionary` is never read
+   --> src/processing.rs:339:5
+    |
+334 | struct ProcessorState {
+    |        -------------- field in this struct
+...
+339 |     bjj_dictionary: BJJDictionary,
+    |     ^^^^^^^^^^^^^^
+    |
+    = note: `ProcessorState` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: fields `timeout` and `chunk_size` are never read
+  --> src/transcription/whisper.rs:65:5
+   |
+59 | pub struct RemoteWhisperClient {
+   |            ------------------- fields in this struct
+...
+65 |     timeout: Duration,
+   |     ^^^^^^^
+66 |     /// Upload chunk size for large files
+67 |     chunk_size: u64,
+   |     ^^^^^^^^^^
+   |
+   = note: `RemoteWhisperClient` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: field `offsets` is never read
+    --> src/transcription/whisper.rs:1042:5
+     |
+1040 | struct WhisperTranscriptionSegment {
+     |        --------------------------- field in this struct
+1041 |     timestamps: WhisperTimestamps,
+1042 |     offsets: WhisperOffsets,
+     |     ^^^^^^^
+     |
+     = note: `WhisperTranscriptionSegment` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: fields `from` and `to` are never read
+    --> src/transcription/whisper.rs:1054:5
+     |
+1053 | struct WhisperOffsets {
+     |        -------------- fields in this struct
+1054 |     from: u64,
+     |     ^^^^
+1055 |     to: u64,
+     |     ^^
+     |
+     = note: `WhisperOffsets` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: field `id` is never read
+    --> src/transcription/whisper.rs:1060:5
+     |
+1059 | struct WhisperSegment {
+     |        -------------- field in this struct
+1060 |     id: u32,
+     |     ^^
+     |
+     = note: `WhisperSegment` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: field `timeout` is never read
+  --> src/chapters/scraper.rs:16:5
+   |
+14 | pub struct BJJFanaticsScraper {
+   |            ------------------ field in this struct
+15 |     client: Client,
+16 |     timeout: Duration,
+   |     ^^^^^^^
+   |
+   = note: `BJJFanaticsScraper` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: methods `split_instructor_and_series` and `find_volume_title` are never used
+   --> src/chapters/scraper.rs:462:8
+    |
+19  | impl BJJFanaticsScraper {
+    | ----------------------- methods in this implementation
+...
+462 |     fn split_instructor_and_series(&self, combined: &str) -> (Vec<String>, Vec<String>) {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+729 |     fn find_volume_title(&self, _table_element: &scraper::ElementRef) -> String {
+    |        ^^^^^^^^^^^^^^^^^
+
+warning: `bjj-analyzer-rust` (lib) generated 16 warnings (run `cargo fix --lib -p bjj-analyzer-rust` to apply 5 suggestions)
+warning: unused import: `BJJTermCategory`
+ --> src/bjj/mod.rs:3:37
+  |
+3 | pub use dictionary::{BJJDictionary, BJJTermCategory};
+  |                                     ^^^^^^^^^^^^^^^
+
+warning: unused import: `TranscriptionSegment`
+ --> src/transcription/mod.rs:4:60
+  |
+4 | pub use whisper::{WhisperTranscriber, TranscriptionResult, TranscriptionSegment};
+  |                                                            ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `SRTEntry`, `SRTFormatter`, and `SRTGenerator`
+ --> src/transcription/mod.rs:5:15
+  |
+5 | pub use srt::{SRTGenerator, SRTEntry, SRTFormatter};
+  |               ^^^^^^^^^^^^  ^^^^^^^^  ^^^^^^^^^^^^
+
+warning: unused import: `scraper::BJJFanaticsScraper`
+  --> src/chapters/mod.rs:13:9
+   |
+13 | pub use scraper::BJJFanaticsScraper;
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `ChapterCacheManager` and `ChapterCache`
+  --> src/chapters/mod.rs:14:17
+   |
+14 | pub use cache::{ChapterCache, ChapterCacheManager};
+   |                 ^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^
+
+warning: methods `extract_audio`, `validate_video`, `extract_thumbnail`, and `detect_scene_changes` are never used
+   --> src/video.rs:194:18
+    |
+39  | impl VideoProcessor {
+    | ------------------- methods in this implementation
+...
+194 |     pub async fn extract_audio(&self, video_info: &VideoInfo, output_path: &Path) -> Result<PathBuf> {
+    |                  ^^^^^^^^^^^^^
+...
+221 |     pub async fn validate_video(&self, video_path: &Path) -> Result<bool> {
+    |                  ^^^^^^^^^^^^^^
+...
+238 |     pub async fn extract_thumbnail(
+    |                  ^^^^^^^^^^^^^^^^^
+...
+268 |     pub async fn detect_scene_changes(&self, video_info: &VideoInfo) -> Result<Vec<Duration>> {
+    |                  ^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` on by default
+
+warning: field `target_format` is never read
+  --> src/audio.rs:25:9
+   |
+21 | pub struct AudioExtractor {
+   |            -------------- field in this struct
+...
+25 |     pub target_format: String,
+   |         ^^^^^^^^^^^^^
+   |
+   = note: `AudioExtractor` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: methods `split_audio`, `enhance_audio`, `detect_silence`, `analyze_volume_levels`, and `cleanup_temp_files` are never used
+   --> src/audio.rs:140:18
+    |
+28  | impl AudioExtractor {
+    | ------------------- methods in this implementation
+...
+140 |     pub async fn split_audio(
+    |                  ^^^^^^^^^^^
+...
+189 |     pub async fn enhance_audio(
+    |                  ^^^^^^^^^^^^^
+...
+220 |     pub async fn detect_silence(&self, audio_info: &AudioInfo) -> Result<Vec<(Duration, Duration)>> {
+    |                  ^^^^^^^^^^^^^^
+...
+260 |     pub async fn analyze_volume_levels(&self, audio_info: &AudioInfo) -> Result<Vec<f64>> {
+    |                  ^^^^^^^^^^^^^^^^^^^^^
+...
+291 |     pub async fn cleanup_temp_files(&self, temp_dir: &Path) -> Result<()> {
+    |                  ^^^^^^^^^^^^^^^^^^
+
+warning: field `audio_extractor` is never read
+  --> src/processing.rs:71:5
+   |
+68 | pub struct BatchProcessor {
+   |            -------------- field in this struct
+...
+71 |     audio_extractor: AudioExtractor,
+   |     ^^^^^^^^^^^^^^^
+
+warning: method `get_stats` is never used
+   --> src/processing.rs:324:12
+    |
+79  | impl BatchProcessor {
+    | ------------------- method in this implementation
+...
+324 |     pub fn get_stats(&self) -> ProcessingStats {
+    |            ^^^^^^^^^
+
+warning: struct `ProcessingStats` is never constructed
+   --> src/processing.rs:733:12
+    |
+733 | pub struct ProcessingStats {
+    |            ^^^^^^^^^^^^^^^
+    |
+    = note: `ProcessingStats` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: methods `load_prompt`, `load_correction_prompt`, `load_summary_high_level_prompt`, `load_summary_technical_prompt`, `load_mermaid_flowchart_prompt`, and `load_whisper_transcription_prompt` are never used
+   --> src/config.rs:289:18
+    |
+287 | impl PromptConfig {
+    | ----------------- methods in this implementation
+288 |     /// Load prompt content from a specific file
+289 |     pub async fn load_prompt(&self, filename: &str) -> Result<String> {
+    |                  ^^^^^^^^^^^
+...
+298 |     pub async fn load_correction_prompt(&self) -> Result<String> {
+    |                  ^^^^^^^^^^^^^^^^^^^^^^
+...
+303 |     pub async fn load_summary_high_level_prompt(&self) -> Result<String> {
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+308 |     pub async fn load_summary_technical_prompt(&self) -> Result<String> {
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+313 |     pub async fn load_mermaid_flowchart_prompt(&self) -> Result<String> {
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+318 |     pub async fn load_whisper_transcription_prompt(&self) -> Result<String> {
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `save`, `validate`, and `summary` are never used
+   --> src/config.rs:385:12
+    |
+323 | impl Config {
+    | ----------- methods in this implementation
+...
+385 |     pub fn save(&self, path: &str) -> Result<()> {
+    |            ^^^^
+...
+393 |     pub fn validate(&self) -> Result<()> {
+    |            ^^^^^^^^
+...
+431 |     pub fn summary(&self) -> String {
+    |            ^^^^^^^
+
+warning: field `config` is never read
+   --> src/config.rs:548:5
+    |
+547 | pub struct ConfigBuilder {
+    |            ------------- field in this struct
+548 |     config: Config,
+    |     ^^^^^^
+
+warning: multiple methods are never used
+   --> src/config.rs:558:12
+    |
+551 | impl ConfigBuilder {
+    | ------------------ methods in this implementation
+...
+558 |     pub fn with_workers(mut self, workers: usize) -> Self {
+    |            ^^^^^^^^^^^^
+...
+563 |     pub fn with_sample_rate(mut self, sample_rate: u32) -> Self {
+    |            ^^^^^^^^^^^^^^^^
+...
+568 |     pub fn with_output_dir(mut self, dir: PathBuf) -> Self {
+    |            ^^^^^^^^^^^^^^^
+...
+573 |     pub fn with_transcription_provider(mut self, provider: TranscriptionProvider) -> Self {
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+578 |     pub fn with_api_key(mut self, api_key: String) -> Self {
+    |            ^^^^^^^^^^^^
+...
+583 |     pub fn enable_enhancement(mut self, enable: bool) -> Self {
+    |            ^^^^^^^^^^^^^^^^^^
+...
+588 |     pub fn enable_caching(mut self, enable: bool) -> Self {
+    |            ^^^^^^^^^^^^^^
+...
+593 |     pub fn build(self) -> Config {
+    |            ^^^^^
+
+warning: associated items `with_prompt_file`, `get_terms`, `get_all_terms`, `get_corrections`, `contains_term`, and `get_correction` are never used
+   --> src/bjj/dictionary.rs:59:18
+    |
+34  | impl BJJDictionary {
+    | ------------------ associated items in this implementation
+...
+59  |     pub async fn with_prompt_file<P: AsRef<Path>>(prompt_path: P) -> Result<Self> {
+    |                  ^^^^^^^^^^^^^^^^
+...
+89  |     pub fn get_terms(&self, category: &BJJTermCategory) -> Vec<String> {
+    |            ^^^^^^^^^
+...
+94  |     pub fn get_all_terms(&self) -> Vec<String> {
+    |            ^^^^^^^^^^^^^
+...
+99  |     pub fn get_corrections(&self) -> &HashMap<String, String> {
+    |            ^^^^^^^^^^^^^^^
+...
+114 |     pub fn contains_term(&self, term: &str) -> bool {
+    |            ^^^^^^^^^^^^^
+...
+120 |     pub fn get_correction(&self, term: &str) -> Option<&String> {
+    |            ^^^^^^^^^^^^^^
+
+warning: field `category_counts` is never read
+   --> src/bjj/dictionary.rs:402:9
+    |
+399 | pub struct BJJDictionaryStats {
+    |            ------------------ field in this struct
+...
+402 |     pub category_counts: HashMap<BJJTermCategory, usize>,
+    |         ^^^^^^^^^^^^^^^
+    |
+    = note: `BJJDictionaryStats` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: method `summary` is never used
+   --> src/bjj/dictionary.rs:407:12
+    |
+405 | impl BJJDictionaryStats {
+    | ----------------------- method in this implementation
+406 |     /// Generate a summary string
+407 |     pub fn summary(&self) -> String {
+    |            ^^^^^^^
+
+warning: associated items `with_model`, `with_gpu`, `check_availability`, and `get_available_models` are never used
+   --> src/transcription/whisper.rs:238:12
+    |
+210 | impl WhisperTranscriber {
+    | ----------------------- associated items in this implementation
+...
+238 |     pub fn with_model(mut self, model: String) -> Self {
+    |            ^^^^^^^^^^
+...
+244 |     pub fn with_gpu(mut self, use_gpu: bool) -> Self {
+    |            ^^^^^^^^
+...
+962 |     pub async fn check_availability() -> Result<String> {
+    |                  ^^^^^^^^^^^^^^^^^^
+...
+982 |     pub async fn get_available_models() -> Result<Vec<String>> {
+    |                  ^^^^^^^^^^^^^^^^^^^^
+
+warning: multiple methods are never used
+   --> src/transcription/srt.rs:65:12
+    |
+51  | impl SRTGenerator {
+    | ----------------- methods in this implementation
+...
+65  |     pub fn add_entries(&mut self, entries: Vec<SRTEntry>) {
+    |            ^^^^^^^^^^^
+...
+99  |     pub fn get_total_duration(&self) -> Duration {
+    |            ^^^^^^^^^^^^^^^^^^
+...
+113 |     pub fn is_empty(&self) -> bool {
+    |            ^^^^^^^^
+...
+118 |     pub fn get_entries_in_range(&self, start: Duration, end: Duration) -> Vec<&SRTEntry> {
+    |            ^^^^^^^^^^^^^^^^^^^^
+...
+126 |     pub fn get_entries(&self) -> &[SRTEntry] {
+    |            ^^^^^^^^^^^
+...
+131 |     pub fn clear(&mut self) {
+    |            ^^^^^
+...
+136 |     pub fn merge_overlapping(&mut self) {
+    |            ^^^^^^^^^^^^^^^^^
+...
+164 |     pub fn split_long_entries(&mut self, max_duration: Duration) {
+    |            ^^^^^^^^^^^^^^^^^^
+
+warning: struct `SRTFormatter` is never constructed
+   --> src/transcription/srt.rs:250:12
+    |
+250 | pub struct SRTFormatter;
+    |            ^^^^^^^^^^^^
+
+warning: associated functions `format_timestamp`, `parse_timestamp`, `clean_text`, and `wrap_text` are never used
+   --> src/transcription/srt.rs:254:12
+    |
+252 | impl SRTFormatter {
+    | ----------------- associated functions in this implementation
+253 |     /// Format duration for SRT timestamp (HH:MM:SS,mmm)
+254 |     pub fn format_timestamp(duration: Duration) -> String {
+    |            ^^^^^^^^^^^^^^^^
+...
+259 |     pub fn parse_timestamp(timestamp: &str) -> Result<Duration> {
+    |            ^^^^^^^^^^^^^^^
+...
+264 |     pub fn clean_text(text: &str) -> String {
+    |            ^^^^^^^^^^
+...
+276 |     pub fn wrap_text(text: &str, max_line_length: usize) -> String {
+    |            ^^^^^^^^^
+
+warning: function `parse_duration` is never used
+   --> src/transcription/srt.rs:313:4
+    |
+313 | fn parse_duration(timestamp: &str) -> Result<Duration> {
+    |    ^^^^^^^^^^^^^^
+
+warning: function `parse_single_timestamp` is never used
+   --> src/transcription/srt.rs:323:4
+    |
+323 | fn parse_single_timestamp(timestamp: &str) -> Result<Duration> {
+    |    ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `provider_type` is never used
+  --> src/llm/mod.rs:61:8
+   |
+58 | pub trait LLM: Send + Sync {
+   |           --- method in this trait
+...
+61 |     fn provider_type(&self) -> LLMProvider;
+   |        ^^^^^^^^^^^^^
+
+warning: methods `apply_replacements` and `is_available` are never used
+   --> src/llm/correction.rs:93:12
+    |
+33  | impl TranscriptionCorrector {
+    | --------------------------- methods in this implementation
+...
+93  |     pub fn apply_replacements(&self, text: &str, replacements: &[TextReplacement]) -> String {
+    |            ^^^^^^^^^^^^^^^^^^
+...
+158 |     pub async fn is_available(&self) -> bool {
+    |                  ^^^^^^^^^^^^
+
+warning: function `correct_transcription_text` is never used
+   --> src/llm/correction.rs:239:14
+    |
+239 | pub async fn correct_transcription_text(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `reset_stages`, `reset_chapter_detection`, `reset_all_videos`, `get_statistics`, `cleanup_invalid_states`, and `remove_state_file` are never used
+   --> src/state.rs:338:18
+    |
+141 | impl StateManager {
+    | ----------------- methods in this implementation
+...
+338 |     pub async fn reset_stages(&self, video_path: &Path, stages_to_reset: &[ProcessingStage]) -> Result<()> {
+    |                  ^^^^^^^^^^^^
+...
+367 |     pub async fn reset_chapter_detection(&self, video_path: &Path) -> Result<()> {
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^
+...
+396 |     pub async fn reset_all_videos(&self) -> Result<usize> {
+    |                  ^^^^^^^^^^^^^^^^
+...
+418 |     pub async fn get_statistics(&self) -> Result<StateManagerStats> {
+    |                  ^^^^^^^^^^^^^^
+...
+520 |     pub async fn cleanup_invalid_states(&self) -> Result<usize> {
+    |                  ^^^^^^^^^^^^^^^^^^^^^^
+...
+554 |     async fn remove_state_file(&self, state: &VideoProcessingState) -> Result<()> {
+    |              ^^^^^^^^^^^^^^^^^
+
+warning: multiple methods are never used
+   --> src/chapters/scraper.rs:80:18
+    |
+19  | impl BJJFanaticsScraper {
+    | ----------------------- methods in this implementation
+...
+80  |     pub async fn force_scrape_chapters(&self, video_filename: &str, video_dir: &Path, output_dir: Option<&Path>) -> Result<Vec<ChapterInf...
+    |                  ^^^^^^^^^^^^^^^^^^^^^
+...
+107 |     pub fn map_chapters_to_video(
+    |            ^^^^^^^^^^^^^^^^^^^^^
+...
+144 |     fn calculate_video_boundaries(&self, chapters: &[ChapterInfo], single_video_duration: f64) -> Vec<VideoBoundary> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+194 |     fn extract_chapters_for_boundary(&self, chapters: &[ChapterInfo], boundary: &VideoBoundary) -> Vec<ChapterInfo> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+214 |     fn filter_chapters_by_duration(&self, chapters: &[ChapterInfo], max_duration: f64) -> Vec<ChapterInfo> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+462 |     fn split_instructor_and_series(&self, combined: &str) -> (Vec<String>, Vec<String>) {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+729 |     fn find_volume_title(&self, _table_element: &scraper::ElementRef) -> String {
+    |        ^^^^^^^^^^^^^^^^^
+
+warning: struct `VideoBoundary` is never constructed
+    --> src/chapters/scraper.rs:1216:8
+     |
+1216 | struct VideoBoundary {
+     |        ^^^^^^^^^^^^^
+
+warning: field `max_chapters` is never read
+  --> src/chapters/detector.rs:18:9
+   |
+10 | pub struct ChapterDetectionConfig {
+   |            ---------------------- field in this struct
+...
+18 |     pub max_chapters: usize,
+   |         ^^^^^^^^^^^^
+   |
+   = note: `ChapterDetectionConfig` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: methods `force_refresh_chapters` and `delete_chapter_file` are never used
+   --> src/chapters/detector.rs:98:18
+    |
+39  | impl ChapterDetector {
+    | -------------------- methods in this implementation
+...
+98  |     pub async fn force_refresh_chapters(&self, video_path: &Path) -> Result<Vec<ChapterInfo>> {
+    |                  ^^^^^^^^^^^^^^^^^^^^^^
+...
+147 |     pub async fn delete_chapter_file(&self, series_name: &str) -> Result<bool> {
+    |                  ^^^^^^^^^^^^^^^^^^^
+
+warning: struct `ChapterCacheManager` is never constructed
+  --> src/chapters/cache.rs:30:12
+   |
+30 | pub struct ChapterCacheManager {
+   |            ^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `ChapterCacheManager` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: multiple associated items are never used
+   --> src/chapters/cache.rs:39:12
+    |
+37  | impl ChapterCacheManager {
+    | ------------------------ associated items in this implementation
+38  |     /// Create a new cache manager
+39  |     pub fn new(cache_dir: PathBuf, cache_ttl_hours: u64) -> Self {
+    |            ^^^
+...
+47  |     pub async fn initialize(&self) -> Result<()> {
+    |                  ^^^^^^^^^^
+...
+54  |     pub fn generate_cache_key(&self, instructor: &[String], series: &[String]) -> String {
+    |            ^^^^^^^^^^^^^^^^^^
+...
+73  |     pub async fn load_cached_chapters(&self, cache_key: &str) -> Option<ChapterCache> {
+    |                  ^^^^^^^^^^^^^^^^^^^^
+...
+110 |     pub async fn save_cached_chapters(
+    |                  ^^^^^^^^^^^^^^^^^^^^
+...
+140 |     fn is_cache_valid(&self, cache: &ChapterCache) -> bool {
+    |        ^^^^^^^^^^^^^^
+...
+151 |     pub async fn cleanup_expired_cache(&self) -> Result<usize> {
+    |                  ^^^^^^^^^^^^^^^^^^^^^
+...
+180 |     pub async fn get_cache_stats(&self) -> Result<CacheStats> {
+    |                  ^^^^^^^^^^^^^^^
+...
+206 |     pub async fn invalidate_cache(&self, cache_key: &str) -> Result<bool> {
+    |                  ^^^^^^^^^^^^^^^^
+...
+220 |     pub async fn invalidate_series_cache(&self, instructor: &[String], series: &[String]) -> Result<bool> {
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^
+...
+226 |     pub async fn clear_all_cache(&self) -> Result<usize> {
+    |                  ^^^^^^^^^^^^^^^
+...
+248 |     pub async fn list_cached_series(&self) -> Result<Vec<CachedSeriesInfo>> {
+    |                  ^^^^^^^^^^^^^^^^^^
+...
+279 |     fn get_cache_age_hours(&self, cache: &ChapterCache) -> u64 {
+    |        ^^^^^^^^^^^^^^^^^^^
+
+warning: fields `total_files`, `valid_files`, `expired_files`, and `total_chapters` are never read
+   --> src/chapters/cache.rs:291:9
+    |
+290 | pub struct CacheStats {
+    |            ---------- fields in this struct
+291 |     pub total_files: usize,
+    |         ^^^^^^^^^^^
+292 |     pub valid_files: usize,
+    |         ^^^^^^^^^^^
+293 |     pub expired_files: usize,
+    |         ^^^^^^^^^^^^^
+294 |     pub total_chapters: usize,
+    |         ^^^^^^^^^^^^^^
+    |
+    = note: `CacheStats` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: struct `CachedSeriesInfo` is never constructed
+   --> src/chapters/cache.rs:299:12
+    |
+299 | pub struct CachedSeriesInfo {
+    |            ^^^^^^^^^^^^^^^^
+    |
+    = note: `CachedSeriesInfo` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: method `get_urls` is never used
+   --> src/chapters/product_pages.rs:186:12
+    |
+14  | impl ProductPagesFile {
+    | --------------------- method in this implementation
+...
+186 |     pub fn get_urls(&self) -> &[String] {
+    |            ^^^^^^^^
+
+warning: `bjj-analyzer-rust` (bin "bjj-analyzer") generated 51 warnings (14 duplicates) (run `cargo fix --bin "bjj-analyzer"` to apply 5 suggestions)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.08s
+     Running `target/debug/bjj-analyzer --video-dir '/Users/rolandlechner/SW Development/Test Files2' --api-port 8080`
+[2m2025-06-17T20:53:35.957786Z[0m [32m INFO[0m [2mbjj_analyzer[0m[2m:[0m 🔧 Logging system initialized
+[2m2025-06-17T20:53:35.957934Z[0m [32m INFO[0m [2mbjj_analyzer[0m[2m:[0m 📝 Log file: bjj_analyzer.log
+[2m2025-06-17T20:53:35.958805Z[0m [32m INFO[0m [2mbjj_analyzer[0m[2m:[0m 🚀 BJJ Video Analyzer (Rust) starting...
+[2m2025-06-17T20:53:35.958832Z[0m [32m INFO[0m [2mbjj_analyzer[0m[2m:[0m 📁 Input directory: /Users/rolandlechner/SW Development/Test Files2
+[2m2025-06-17T20:53:35.958850Z[0m [32m INFO[0m [2mbjj_analyzer[0m[2m:[0m 📂 Output directory: ./output
+[2m2025-06-17T20:53:35.958857Z[0m [32m INFO[0m [2mbjj_analyzer[0m[2m:[0m 🔧 Workers: 4
+[2m2025-06-17T20:53:35.958875Z[0m [32m INFO[0m [2mbjj_analyzer[0m[2m:[0m 🤖 LLM correction enabled: true
+[2m2025-06-17T20:53:35.958881Z[0m [32m INFO[0m [2mbjj_analyzer[0m[2m:[0m 🤖 LLM provider: LMStudio
+[2m2025-06-17T20:53:35.958897Z[0m [32m INFO[0m [2mbjj_analyzer[0m[2m:[0m 🤖 LLM endpoint: Some("http://localhost:1234/v1/chat/completions")
+[2m2025-06-17T20:53:35.959361Z[0m [32m INFO[0m [2mbjj_analyzer::processing[0m[2m:[0m 🔧 Initializing BatchProcessor with 4 workers
+[2m2025-06-17T20:53:35.959952Z[0m [32m INFO[0m [2mbjj_analyzer::bjj::dictionary[0m[2m:[0m 📚 Loaded BJJ dictionary from: config/bjj_terms.txt
+[2m2025-06-17T20:53:35.960014Z[0m [32m INFO[0m [2mbjj_analyzer::bjj::dictionary[0m[2m:[0m 📝 Loaded BJJ prompt template from: config/prompts/whisper_transcription.txt
+[2m2025-06-17T20:53:35.963543Z[0m [32m INFO[0m [2mbjj_analyzer::chapters::detector[0m[2m:[0m 🔍 Chapter detector initialized
+[2m2025-06-17T20:53:35.963572Z[0m [32m INFO[0m [2mbjj_analyzer::chapters::detector[0m[2m:[0m 📁 Chapters directory: chapters
+[2m2025-06-17T20:53:35.963586Z[0m [32m INFO[0m [2mbjj_analyzer::processing[0m[2m:[0m 📚 BJJ Dictionary loaded: 592 terms, 71 corrections
+[2m2025-06-17T20:53:35.963615Z[0m [32m INFO[0m [2mbjj_analyzer[0m[2m:[0m 🌐 Starting API server on port 8080
+[2m2025-06-17T20:53:35.964466Z[0m [32m INFO[0m [2mbjj_analyzer::state[0m[2m:[0m 📊 State manager initialized with 7 cached states
+[2m2025-06-17T20:53:35.964790Z[0m [32m INFO[0m [2mbjj_analyzer::state[0m[2m:[0m 📁 Scanned 7 videos in directory: /Users/rolandlechner/SW Development/Test Files2
+[2m2025-06-17T20:53:35.964810Z[0m [32m INFO[0m [2mbjj_analyzer::processing[0m[2m:[0m 🎬 Found 7 videos for API access
+[2m2025-06-17T20:53:35.964858Z[0m [32m INFO[0m [2mbjj_analyzer[0m[2m:[0m 🌐 Running in API server mode - processing will be triggered via API calls
+[2m2025-06-17T20:53:35.964866Z[0m [32m INFO[0m [2mbjj_analyzer[0m[2m:[0m 🎯 Access the web interface or use API endpoints to process videos
+[2m2025-06-17T20:53:35.964872Z[0m [32m INFO[0m [2mbjj_analyzer[0m[2m:[0m 🛑 Press Ctrl+C to stop the server
+[2m2025-06-17T20:53:35.964886Z[0m [32m INFO[0m [2mbjj_analyzer::api[0m[2m:[0m 🚀 Starting API server on port 8080
+[2m2025-06-17T20:53:35.964909Z[0m [32m INFO[0m [2mbjj_analyzer::api::server[0m[2m:[0m 🚀 Starting HTTP server on port 8080
+[2m2025-06-17T20:53:35.965621Z[0m [32m INFO[0m [2mbjj_analyzer::api::server[0m[2m:[0m 🌐 API server listening on http://0.0.0.0:8080
+[2m2025-06-17T20:53:35.965628Z[0m [32m INFO[0m [2mbjj_analyzer::api::server[0m[2m:[0m 🔗 WebSocket endpoint available at ws://0.0.0.0:8080/ws
+[2m2025-06-17T20:53:36.908415Z[0m [32m INFO[0m [2mbjj_analyzer::api::server[0m[2m:[0m 🔌 New WebSocket connection established
+[2m2025-06-17T20:53:39.916080Z[0m [32m INFO[0m [2mbjj_analyzer::api::server[0m[2m:[0m 🔌 New WebSocket connection established
+[2m2025-06-17T20:53:42.922433Z[0m [32m INFO[0m [2mbjj_analyzer::api::server[0m[2m:[0m 🔌 New WebSocket connection established
+[2m2025-06-17T20:53:45.929806Z[0m [32m INFO[0m [2mbjj_analyzer::api::server[0m[2m:[0m 🔌 New WebSocket connection established
+[2m2025-06-17T20:53:48.935803Z[0m [32m INFO[0m [2mbjj_analyzer::api::server[0m[2m:[0m 🔌 New WebSocket connection established
+[2m2025-06-17T20:53:51.939877Z[0m [32m INFO[0m [2mbjj_analyzer::api::server[0m[2m:[0m 🔌 New WebSocket connection established
+[2m2025-06-17T20:53:54.945254Z[0m [32m INFO[0m [2mbjj_analyzer::api::server[0m[2m:[0m 🔌 New WebSocket connection established
+[2m2025-06-17T20:53:57.953550Z[0m [32m INFO[0m [2mbjj_analyzer::api::server[0m[2m:[0m 🔌 New WebSocket connection established
+[2m2025-06-17T20:54:00.959615Z[0m [32m INFO[0m [2mbjj_analyzer::api::server[0m[2m:[0m 🔌 New WebSocket connection established
+[2m2025-06-17T20:54:03.969230Z[0m [32m INFO[0m [2mbjj_analyzer::api::server[0m[2m:[0m 🔌 New WebSocket connection established
+[2m2025-06-17T20:54:06.973977Z[0m [32m INFO[0m [2mbjj_analyzer::api::server[0m[2m:[0m 🔌 New WebSocket connection established
+[2m2025-06-17T20:54:09.980823Z[0m [32m INFO[0m [2mbjj_analyzer::api::server[0m[2m:[0m 🔌 New WebSocket connection established
+[2m2025-06-17T20:54:12.988533Z[0m [32m INFO[0m [2mbjj_analyzer::api::server[0m[2m:[0m 🔌 New WebSocket connection established
+[2m2025-06-17T20:54:15.993189Z[0m [32m INFO[0m [2mbjj_analyzer::api::server[0m[2m:[0m 🔌 New WebSocket connection established
+[2m2025-06-17T20:54:18.998469Z[0m [32m INFO[0m [2mbjj_analyzer::api::server[0m[2m:[0m 🔌 New WebSocket connection established
+[2m2025-06-17T20:54:22.002554Z[0m [32m INFO[0m [2mbjj_analyzer::api::server[0m[2m:[0m 🔌 New WebSocket connection established
+[2m2025-06-17T20:54:25.014627Z[0m [32m INFO[0m [2mbjj_analyzer::api::server[0m[2m:[0m 🔌 New WebSocket connection established
+[2m2025-06-17T20:54:28.023322Z[0m [32m INFO[0m [2mbjj_analyzer::api::server[0m[2m:[0m 🔌 New WebSocket connection established
+[2m2025-06-17T20:54:31.030523Z[0m [32m INFO[0m [2mbjj_analyzer::api::server[0m[2m:[0m 🔌 New WebSocket connection established
+[2m2025-06-17T20:54:34.038044Z[0m [32m INFO[0m [2mbjj_analyzer::api::server[0m[2m:[0m 🔌 New WebSocket connection established
+[2m2025-06-17T20:54:37.046817Z[0m [32m INFO[0m [2mbjj_analyzer::api::server[0m[2m:[0m 🔌 New WebSocket connection established
+[2m2025-06-17T20:54:40.052336Z[0m [32m INFO[0m [2mbjj_analyzer::api::server[0m[2m:[0m 🔌 New WebSocket connection established

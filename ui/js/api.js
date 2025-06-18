@@ -88,11 +88,22 @@ class ApiClient {
 
     // Video-related API calls
     async getVideos(filters = {}) {
-        return this.get('/videos', filters);
+        const response = await this.get('/videos', filters);
+        // Extract videos array from the API response structure
+        if (response && response.success && response.data && response.data.videos) {
+            return response.data.videos;
+        }
+        // Fallback: if response format is unexpected, return empty array
+        return [];
     }
 
     async getVideo(id) {
-        return this.get(`/videos/${id}`);
+        const response = await this.get(`/videos/${id}`);
+        // Extract video data from the API response structure
+        if (response && response.success && response.data) {
+            return response.data;
+        }
+        return null;
     }
 
     async processVideos(videoData) {
@@ -101,33 +112,61 @@ class ApiClient {
 
     // Series-related API calls
     async getSeries() {
-        return this.get('/series');
+        const response = await this.get('/series');
+        if (response && response.success && response.data) {
+            return response.data;
+        }
+        return [];
     }
 
     async getSeriesById(id) {
-        return this.get(`/series/${id}`);
+        const response = await this.get(`/series/${id}`);
+        if (response && response.success && response.data) {
+            return response.data;
+        }
+        return null;
     }
 
     // Corrections API calls
     async getCorrections() {
-        return this.get('/corrections');
+        const response = await this.get('/corrections');
+        if (response && response.success && response.data) {
+            return response.data;
+        }
+        return [];
     }
 
     async submitSeriesCorrection(correction) {
-        return this.post('/corrections/series', correction);
+        const response = await this.post('/corrections/series', correction);
+        if (response && response.success) {
+            return response.data;
+        }
+        throw new Error(response?.error || 'Failed to submit series correction');
     }
 
     async submitProductCorrection(correction) {
-        return this.post('/corrections/products', correction);
+        const response = await this.post('/corrections/products', correction);
+        if (response && response.success) {
+            return response.data;
+        }
+        throw new Error(response?.error || 'Failed to submit product correction');
     }
 
     // Status API calls
     async getStatus() {
-        return this.get('/status');
+        const response = await this.get('/status');
+        if (response && response.success && response.data) {
+            return response.data;
+        }
+        return {};
     }
 
     async getHealth() {
-        return this.get('/health');
+        const response = await this.get('/health');
+        if (response && response.success && response.data) {
+            return response.data;
+        }
+        return null;
     }
 
     // Utility methods

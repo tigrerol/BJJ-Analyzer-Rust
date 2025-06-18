@@ -8,6 +8,9 @@ use std::time::Duration;
 use std::path::{Path, PathBuf};
 use tokio::fs;
 use tracing::{debug, info, warn};
+use crate::llm::filename_parsing::{parse_filename_with_llm, ParsedFilename};
+use crate::llm::LLMConfig;
+use crate::config::Config;
 
 /// BJJfanatics web scraper
 #[derive(Clone)]
@@ -218,8 +221,64 @@ impl BJJFanaticsScraper {
             .collect()
     }
 
-    /// Parse video filename to extract search terms
+    /// Parse video filename to extract search terms using LLM with fallback to regex
+    pub async fn parse_video_filename_with_llm(&self, filename: &str, config: Option<&Config>) -> Result<SearchTerms> {
+        if let Some(config) = config {
+            // Try LLM parsing first
+            match self.parse_filename_with_llm_internal(filename, config).await {
+                Ok(search_terms) => return Ok(search_terms),
+                Err(e) => {
+                    warn!("LLM filename parsing failed: {}, falling back to regex", e);
+                }
+            }
+        }
+        
+        // Fallback to regex parsing
+        self.parse_video_filename_regex(filename)
+    }
+    
+    /// Parse video filename using LLM
+    async fn parse_filename_with_llm_internal(&self, filename: &str, config: &Config) -> Result<SearchTerms> {
+        info!("🤖 Parsing filename with LLM: {}", filename);
+        
+        let llm_config = LLMConfig {
+            provider: config.llm.provider.clone(),
+            endpoint: config.llm.endpoint.clone(),
+            api_key: config.llm.api_key.clone(),
+            model: config.llm.model.clone(),
+            max_tokens: config.llm.max_tokens,
+            temperature: config.llm.temperature,
+            timeout_seconds: config.llm.timeout_seconds,
+        };
+        
+        let prompt_path = config.llm.prompts.prompt_dir.join(&config.llm.prompts.filename_parsing_file);
+        
+        let parsed = parse_filename_with_llm(filename, llm_config, Some(&prompt_path)).await?;
+        
+        let mut search_terms = SearchTerms::new();
+        
+        // Convert ParsedFilename to SearchTerms
+        if let Some(instructor) = parsed.instructor {
+            search_terms.instructor = self.split_camel_case(&instructor);
+        }
+        
+        if let Some(series_name) = parsed.series_name {
+            search_terms.series = self.split_camel_case(&series_name);
+        }
+        
+        search_terms.volume = parsed.part_number;
+        
+        info!("🤖 LLM parsed search terms: {:?}", search_terms);
+        Ok(search_terms)
+    }
+
+    /// Parse video filename to extract search terms (legacy regex method)
     pub fn parse_video_filename(&self, filename: &str) -> Result<SearchTerms> {
+        self.parse_video_filename_regex(filename)
+    }
+    
+    /// Parse video filename using regex patterns (fallback method)
+    fn parse_video_filename_regex(&self, filename: &str) -> Result<SearchTerms> {
         let mut search_terms = SearchTerms::new();
         
         info!("🔍 Parsing filename: {}", filename);

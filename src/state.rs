@@ -33,11 +33,17 @@ pub struct VideoProcessingState {
     
     /// Last updated timestamp
     pub last_updated: u64,
+    
+    /// Error message if processing failed
+    pub error_message: Option<String>,
 }
 
 /// Processing stages in the BJJ video analysis pipeline
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ProcessingStage {
+    /// Initial state, not yet started
+    Pending,
+    
     /// Video analysis and validation
     VideoAnalysis,
     
@@ -61,6 +67,9 @@ pub enum ProcessingStage {
     
     /// Final processing and cleanup
     Completed,
+    
+    /// Error occurred during processing
+    Error,
 }
 
 /// Generated files during processing
@@ -249,13 +258,14 @@ impl StateManager {
             video_path: video_path.to_path_buf(),
             video_hash,
             video_modified: modified_time,
-            current_stage: ProcessingStage::VideoAnalysis,
+            current_stage: ProcessingStage::Pending,
             completed_stages: Vec::new(),
             generated_files: GeneratedFiles::default(),
             metadata: ProcessingMetadata::default(),
             last_updated: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)?
                 .as_secs(),
+            error_message: None,
         })
     }
     
@@ -311,6 +321,7 @@ impl StateManager {
     /// Get the next processing stage
     fn next_stage(&self, current: &ProcessingStage) -> ProcessingStage {
         match current {
+            ProcessingStage::Pending => ProcessingStage::VideoAnalysis,
             ProcessingStage::VideoAnalysis => ProcessingStage::AudioExtraction,
             ProcessingStage::AudioExtraction => ProcessingStage::AudioEnhancement,
             ProcessingStage::AudioEnhancement => ProcessingStage::Transcription,
@@ -319,6 +330,7 @@ impl StateManager {
             ProcessingStage::ChapterDetection => ProcessingStage::SubtitleGeneration,
             ProcessingStage::SubtitleGeneration => ProcessingStage::Completed,
             ProcessingStage::Completed => ProcessingStage::Completed,
+            ProcessingStage::Error => ProcessingStage::Error,
         }
     }
     
@@ -420,9 +432,88 @@ impl StateManager {
     }
 
     /// Get all video states for API access
-    pub async fn get_all_states(&self) -> Result<Vec<VideoProcessingState>> {
+    pub async fn get_all_states(&self) -> Result<HashMap<String, VideoProcessingState>> {
         let cache = self.state_cache.read().await;
-        Ok(cache.values().cloned().collect())
+        Ok(cache.clone())
+    }
+    
+    /// Get a specific video state by filename
+    pub async fn get_state(&self, filename: &str) -> Result<Option<VideoProcessingState>> {
+        let cache = self.state_cache.read().await;
+        
+        // Try to find by exact key match first
+        if let Some(state) = cache.get(filename) {
+            return Ok(Some(state.clone()));
+        }
+        
+        // Fallback: search by video filename in all states
+        for (_, state) in cache.iter() {
+            if let Some(video_filename) = state.video_path.file_name() {
+                if video_filename.to_string_lossy() == filename {
+                    return Ok(Some(state.clone()));
+                }
+            }
+        }
+        
+        Ok(None)
+    }
+    
+    /// Reset state for a specific video by filename
+    pub async fn reset_state(&self, filename: &str) -> Result<()> {
+        // Find the video path for this filename
+        let video_path = {
+            let cache = self.state_cache.read().await;
+            let mut found_path = None;
+            
+            for (key, state) in cache.iter() {
+                if let Some(video_filename) = state.video_path.file_name() {
+                    if video_filename.to_string_lossy() == filename || key == filename {
+                        found_path = Some(state.video_path.clone());
+                        break;
+                    }
+                }
+            }
+            found_path
+        };
+        
+        match video_path {
+            Some(path) => self.reset_all_stages(&path).await,
+            None => Err(anyhow::anyhow!("Video not found: {}", filename))
+        }
+    }
+    
+    /// Scan a directory for video files and create initial states
+    pub async fn scan_video_directory(&self, video_dir: &Path) -> Result<usize> {
+        let mut scanned_count = 0;
+        
+        // Supported video extensions
+        let video_extensions = vec!["mp4", "avi", "mkv", "mov", "wmv", "flv", "webm"];
+        
+        let mut entries = fs::read_dir(video_dir).await?;
+        while let Some(entry) = entries.next_entry().await? {
+            let path = entry.path();
+            
+            if path.is_file() {
+                if let Some(extension) = path.extension() {
+                    let ext_str = extension.to_string_lossy().to_lowercase();
+                    if video_extensions.contains(&ext_str.as_str()) {
+                        // Create or load state for this video
+                        match self.get_or_create_state(&path).await {
+                            Ok(_) => {
+                                scanned_count += 1;
+                                debug!("📹 Found video: {}", path.display());
+                            }
+                            Err(e) => {
+                                warn!("Failed to create state for {}: {}", path.display(), e);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        info!("📁 Scanned {} videos in directory: {}", scanned_count, video_dir.display());
+        Ok(scanned_count)
     }
     
     /// Clean up old or invalid state files

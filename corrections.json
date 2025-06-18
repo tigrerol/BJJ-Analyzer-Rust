@@ -1,0 +1,24 @@
+[
+  {
+    "correction_type": "series",
+    "id": "correction_1750220293277",
+    "instructor": "Mikey Musumeci",
+    "product_url": "https://bjjfanatics.com/products/the-knee-shield-system-part-1-attacking-far-side-by-mikey-musumeci?_pos=1&_sid=375ebf4c4&_ss=r",
+    "series_name": "The Knee Shield System Part 1: Attacking Far Side",
+    "timestamp": 1750220293,
+    "videos": [
+      "Test Files2_MikeyMusumeciVol1.mp4"
+    ]
+  },
+  {
+    "correction_type": "series",
+    "id": "correction_1750222821507",
+    "instructor": "Gordon Ryan",
+    "product_url": null,
+    "series_name": "Systematically Attacking the Guard Two",
+    "timestamp": 1750222821,
+    "videos": [
+      "Test Files2_SystematicallyAttackingtheGuardTwoByGordonRyan1.mp4"
+    ]
+  }
+]

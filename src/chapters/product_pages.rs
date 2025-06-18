@@ -31,23 +31,39 @@ impl ProductPagesFile {
             .map(|line| line.trim())
             .filter(|line| !line.is_empty() && !line.starts_with('#'))
             .map(|line| {
-                // Remove line prefixes like "7→" from URLs
-                if let Some(arrow_pos) = line.find('→') {
-                    line[arrow_pos + '→'.len_utf8()..].trim().to_string()
+                // Remove various line prefixes like "7→" or "1→" from URLs
+                let cleaned = if let Some(arrow_pos) = line.find('→') {
+                    line[arrow_pos + '→'.len_utf8()..].trim()
                 } else {
-                    line.to_string()
+                    line.trim()
+                };
+                
+                // Also handle numbered prefixes like "1→1→https://..."
+                if cleaned.starts_with(char::is_numeric) && cleaned.contains('→') {
+                    if let Some(arrow_pos) = cleaned.find('→') {
+                        cleaned[arrow_pos + '→'.len_utf8()..].trim().to_string()
+                    } else {
+                        cleaned.to_string()
+                    }
+                } else {
+                    cleaned.to_string()
                 }
             })
             .filter(|line| line.starts_with("http")) // Only keep valid URLs
             .collect();
 
         if urls.is_empty() {
-            return Err(anyhow!("No valid URLs found in product pages file"));
+            warn!("⚠️ No valid URLs found in product pages file at: {}", product_pages_path.display());
+            warn!("File content preview (first 200 chars): {}", &content.chars().take(200).collect::<String>());
+            return Err(anyhow!(
+                "No valid URLs found in product pages file: {}. File should contain URLs starting with 'http', one per line.",
+                product_pages_path.display()
+            ));
         }
 
-        info!("✅ Loaded {} product URLs", urls.len());
-        for url in &urls {
-            debug!("  - {}", url);
+        info!("✅ Loaded {} product URLs from {}", urls.len(), product_pages_path.display());
+        for (idx, url) in urls.iter().enumerate() {
+            debug!("  [{}] {}", idx + 1, url);
         }
 
         Ok(Self { urls })

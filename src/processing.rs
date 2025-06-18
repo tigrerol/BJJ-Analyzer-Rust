@@ -50,6 +50,7 @@ pub enum ProcessingStatus {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ProcessingStage {
+    Pending,
     Discovery,
     VideoAnalysis,
     AudioExtraction,
@@ -60,6 +61,7 @@ pub enum ProcessingStage {
     ChapterDetection,
     TranscriptionPost,
     Completed,
+    Error,
 }
 
 /// High-performance batch processor using async/await and worker pools
@@ -306,6 +308,15 @@ impl BatchProcessor {
     pub async fn get_state_manager_for_dir(&self, input_dir: &std::path::Path) -> Result<std::sync::Arc<StateManager>> {
         let state_dir = input_dir.join(".bjj_analyzer_state");
         let state_manager = StateManager::new(state_dir).await?;
+        
+        // Scan the directory for video files to populate the state manager
+        let scanned_count = state_manager.scan_video_directory(input_dir).await?;
+        if scanned_count > 0 {
+            info!("🎬 Found {} videos for API access", scanned_count);
+        } else {
+            warn!("📂 No video files found in directory: {}", input_dir.display());
+        }
+        
         Ok(std::sync::Arc::new(state_manager))
     }
 
@@ -315,6 +326,11 @@ impl BatchProcessor {
             max_workers: self.max_concurrent,
             available_permits: self.worker_semaphore.available_permits(),
         }
+    }
+    
+    /// Get the configuration
+    pub fn get_config(&self) -> &Config {
+        &self.config
     }
 }
 
@@ -364,6 +380,7 @@ impl ProcessorState {
             status: ProcessingStatus::InProgress,
             error_message: None,
             stages_completed: state.completed_stages.iter().map(|s| match s {
+                StateProcessingStage::Pending => ProcessingStage::Pending,
                 StateProcessingStage::VideoAnalysis => ProcessingStage::VideoAnalysis,
                 StateProcessingStage::AudioExtraction => ProcessingStage::AudioExtraction,
                 StateProcessingStage::AudioEnhancement => ProcessingStage::AudioEnhancement,
@@ -372,6 +389,7 @@ impl ProcessorState {
                 StateProcessingStage::ChapterDetection => ProcessingStage::ChapterDetection,
                 StateProcessingStage::SubtitleGeneration => ProcessingStage::TranscriptionPost,
                 StateProcessingStage::Completed => ProcessingStage::Completed,
+                StateProcessingStage::Error => ProcessingStage::Error,
             }).collect(),
         };
 
@@ -522,11 +540,7 @@ impl ProcessorState {
                 let stage_start = Instant::now();
                 
                 let llm_config = crate::llm::LLMConfig {
-                    provider: match self.config.llm.provider {
-                        crate::config::LLMProvider::LMStudio => crate::llm::LLMProvider::LMStudio,
-                        crate::config::LLMProvider::Gemini => crate::llm::LLMProvider::Gemini,
-                        crate::config::LLMProvider::OpenAI => crate::llm::LLMProvider::OpenAI,
-                    },
+                    provider: self.config.llm.provider.clone(),
                     endpoint: self.config.llm.endpoint.clone(),
                     api_key: self.config.llm.api_key.clone(),
                     model: self.config.llm.model.clone(),
@@ -695,6 +709,7 @@ impl ProcessorState {
         result.status = ProcessingStatus::Completed;
         result.processing_time = start_time.elapsed();
         result.stages_completed = state.completed_stages.iter().map(|s| match s {
+            StateProcessingStage::Pending => ProcessingStage::Pending,
             StateProcessingStage::VideoAnalysis => ProcessingStage::VideoAnalysis,
             StateProcessingStage::AudioExtraction => ProcessingStage::AudioExtraction,
             StateProcessingStage::AudioEnhancement => ProcessingStage::AudioEnhancement,
@@ -703,6 +718,7 @@ impl ProcessorState {
             StateProcessingStage::ChapterDetection => ProcessingStage::ChapterDetection,
             StateProcessingStage::SubtitleGeneration => ProcessingStage::TranscriptionPost,
             StateProcessingStage::Completed => ProcessingStage::Completed,
+            StateProcessingStage::Error => ProcessingStage::Error,
         }).collect();
 
         info!("🎉 Video processing completed: {} (total: {:.1}s, skipped: {} stages)", 

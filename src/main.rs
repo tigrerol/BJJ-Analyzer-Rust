@@ -1,6 +1,7 @@
 use anyhow::Result;
 use clap::{Arg, Command};
 use std::path::PathBuf;
+use std::sync::Arc;
 use tracing::{info, warn, error};
 
 mod video;
@@ -161,7 +162,8 @@ async fn main() -> Result<()> {
         
         info!("🌐 Starting API server on port {}", port);
         let state_manager = processor.get_state_manager_for_dir(&video_dir).await?;
-        let api_server = crate::api::ApiServer::new(state_manager, port);
+        let config = Arc::new(processor.get_config().clone());
+        let api_server = crate::api::ApiServer::new(state_manager, config, port);
         Some(api_server.start_background())
     } else {
         None

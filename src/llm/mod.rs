@@ -1,5 +1,6 @@
 pub mod providers;
 pub mod correction;
+pub mod filename_parsing;
 
 use anyhow::Result;
 use async_trait::async_trait;

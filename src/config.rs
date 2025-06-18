@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use crate::llm::LLMProvider;
 
 /// Configuration for the BJJ Video Analyzer
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -204,13 +205,6 @@ pub struct PerformanceConfig {
     pub cache_ttl: u32,
 }
 
-/// LLM provider types
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum LLMProvider {
-    LMStudio,
-    Gemini,
-    OpenAI,
-}
 
 /// LLM configuration for transcription correction
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -266,6 +260,9 @@ pub struct PromptConfig {
     
     /// Whisper transcription prompt template file
     pub whisper_transcription_file: String,
+    
+    /// Filename parsing prompt file
+    pub filename_parsing_file: String,
 }
 
 /// Configuration for chapter detection
@@ -317,6 +314,11 @@ impl PromptConfig {
     /// Load whisper transcription prompt
     pub async fn load_whisper_transcription_prompt(&self) -> Result<String> {
         self.load_prompt(&self.whisper_transcription_file).await
+    }
+    
+    /// Load filename parsing prompt
+    pub async fn load_filename_parsing_prompt(&self) -> Result<String> {
+        self.load_prompt(&self.filename_parsing_file).await
     }
 }
 
@@ -513,6 +515,7 @@ impl Default for Config {
                     summary_technical_file: "summary_technical.txt".to_string(),
                     mermaid_flowchart_file: "mermaid_flowchart.txt".to_string(),
                     whisper_transcription_file: "whisper_transcription.txt".to_string(),
+                    filename_parsing_file: "filename_parsing.txt".to_string(),
                 },
             },
             chapters: ChapterConfig {
