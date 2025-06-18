@@ -176,50 +176,236 @@ impl WhisperTranscriber {
         (text_path, srt_path)
     }
     
-    /// Transcribe audio file
-    pub async fn transcribe_audio(&self, _audio_info: &AudioInfo) -> Result<TranscriptionResult> {
+    /// Transcribe audio file using Whisper
+    pub async fn transcribe_audio(&self, audio_info: &AudioInfo) -> Result<TranscriptionResult> {
         let start_time = std::time::Instant::now();
         
-        // For now, return a mock result - real implementation would call Whisper
-        // This allows our tests to pass while we implement the full transcription logic
+        if !audio_info.path().exists() {
+            return Err(TranscriptionError::Transcription(format!("Audio file not found: {}", audio_info.path().display())));
+        }
+        
+        tracing::info!("Starting Whisper transcription for: {}", audio_info.path().display());
+        
+        // Build Whisper.cpp command
+        let mut cmd = tokio::process::Command::new("whisper-cli");
+        
+        // Basic arguments
+        cmd.args([
+            "-f", audio_info.path().to_str().ok_or_else(|| TranscriptionError::Transcription("Invalid audio path".to_string()))?,
+            "-oj", // Output JSON
+            "-np", // No prints (only results)
+        ]);
+        
+        // Model path resolution for whisper-cli
+        self.add_model_args(&mut cmd)?;
+        
+        // Language detection or explicit language
+        if let Some(language) = self.config.language() {
+            if language != "auto" {
+                cmd.args(["-l", language]);
+            }
+        }
+        
+        // GPU support (whisper.cpp uses --no-gpu to disable)
+        if !self.config.use_gpu() {
+            cmd.args(["--no-gpu"]);
+        }
+        
+        // Output file path (without extension)
+        let output_stem = audio_info.path().with_extension("");
+        if let Some(output_path) = output_stem.to_str() {
+            cmd.args(["-of", output_path]);
+        }
+        
+        // Execute Whisper
+        tracing::debug!("Running Whisper command: {:?}", cmd);
+        let output = cmd.output().await?;
+        
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(TranscriptionError::Whisper(format!("Whisper failed: {}", stderr)));
+        }
+        
+        // Parse Whisper JSON output
+        let output_stem = audio_info.path().with_extension("");
+        let json_path = format!("{}.json", output_stem.to_string_lossy());
+        let json_path = std::path::Path::new(&json_path);
+        
+        if !json_path.exists() {
+            return Err(TranscriptionError::Transcription(format!("Whisper JSON output not found: {}", json_path.display())));
+        }
+        
+        let json_content = tokio::fs::read_to_string(&json_path).await?;
+        let whisper_result: serde_json::Value = serde_json::from_str(&json_content)
+            .map_err(|e| TranscriptionError::Transcription(format!("Failed to parse Whisper JSON: {}", e)))?;
+        
+        // Extract text and segments
+        let text = whisper_result["text"]
+            .as_str()
+            .unwrap_or("")
+            .trim()
+            .to_string();
+            
+        let language = whisper_result["language"]
+            .as_str()
+            .map(|s| s.to_string());
+        
+        let segments: Vec<TranscriptionSegment> = whisper_result["segments"]
+            .as_array()
+            .unwrap_or(&Vec::new())
+            .iter()
+            .enumerate()
+            .filter_map(|(id, segment)| {
+                let start = segment["start"].as_f64()?;
+                let end = segment["end"].as_f64()?;
+                let text = segment["text"].as_str()?.trim().to_string();
+                
+                if !text.is_empty() {
+                    Some(TranscriptionSegment::new(id as u32, start, end, text))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        
         let processing_time = start_time.elapsed();
         
-        Ok(TranscriptionResult::new(
-            "Mock transcription text".to_string(),
-            Some("en".to_string()),
-            vec![
-                TranscriptionSegment::new(0, 0.0, 5.0, "Mock segment text".to_string())
-            ],
+        tracing::info!(
+            "Whisper transcription completed in {:.2}s: {} segments, {} chars",
+            processing_time.as_secs_f64(),
+            segments.len(),
+            text.len()
+        );
+        
+        // Clean up JSON file
+        let _ = tokio::fs::remove_file(&json_path).await;
+        
+        let result = TranscriptionResult::new(
+            text,
+            language,
+            segments,
             processing_time,
             self.config.model().to_string(),
-        ))
+        );
+        
+        // Save transcription results to files
+        self.save_transcription_result(&result, audio_info.path()).await?;
+        
+        Ok(result)
+    }
+    
+    /// Save transcription result to text and SRT files
+    async fn save_transcription_result(&self, result: &TranscriptionResult, audio_path: &Path) -> Result<()> {
+        // Determine output paths based on audio file path
+        let video_path = audio_path.with_extension("mp4"); // Assume video is mp4
+        let (text_path, srt_path) = self.get_output_paths(&video_path);
+        
+        // Save transcript text
+        tokio::fs::write(&text_path, result.text()).await?;
+        tracing::debug!("Saved transcript to: {}", text_path.display());
+        
+        // Generate and save SRT content
+        let srt_content = self.generate_srt_content(result);
+        tokio::fs::write(&srt_path, srt_content).await?;
+        tracing::debug!("Saved SRT to: {}", srt_path.display());
+        
+        Ok(())
+    }
+    
+    /// Generate SRT subtitle content from transcription result
+    fn generate_srt_content(&self, result: &TranscriptionResult) -> String {
+        let mut srt_content = String::new();
+        
+        for (index, segment) in result.segments().iter().enumerate() {
+            let start_time = self.format_srt_timestamp(segment.start);
+            let end_time = self.format_srt_timestamp(segment.end);
+            
+            srt_content.push_str(&format!(
+                "{}\n{} --> {}\n{}\n\n",
+                index + 1,
+                start_time,
+                end_time,
+                segment.text
+            ));
+        }
+        
+        srt_content
+    }
+    
+    /// Format timestamp for SRT format (HH:MM:SS,mmm)
+    fn format_srt_timestamp(&self, seconds: f64) -> String {
+        let total_seconds = seconds as u64;
+        let hours = total_seconds / 3600;
+        let minutes = (total_seconds % 3600) / 60;
+        let secs = total_seconds % 60;
+        let milliseconds = ((seconds - total_seconds as f64) * 1000.0) as u64;
+        
+        format!("{:02}:{:02}:{:02},{:03}", hours, minutes, secs, milliseconds)
     }
     
     /// Transcribe video file (extracts audio first if needed)
     pub async fn transcribe_video(&self, video_path: &Path) -> Result<TranscriptionResult> {
+        use crate::audio::AudioExtractor;
+        
         // Check if transcription already exists
         if self.transcription_exists(video_path) {
             return Err(TranscriptionError::Transcription("Transcription already exists".to_string()));
         }
         
-        // For now, return mock result - real implementation would:
-        // 1. Extract audio using AudioExtractor
-        // 2. Call transcribe_audio
-        // 3. Save results to files
+        // Extract audio if needed
+        let audio_extractor = AudioExtractor::new();
+        let audio_info = if audio_extractor.audio_exists(video_path) {
+            // Audio already exists, get info
+            let audio_path = audio_extractor.get_audio_output_path(video_path);
+            audio_extractor.get_audio_info(&audio_path).await?
+        } else {
+            // Extract audio from video
+            tracing::info!("Extracting audio from: {}", video_path.display());
+            audio_extractor.extract_audio(video_path).await?
+        };
         
-        let start_time = std::time::Instant::now();
-        let processing_time = start_time.elapsed();
+        // Transcribe the audio
+        let result = self.transcribe_audio(&audio_info).await?;
         
         let (text_path, srt_path) = self.get_output_paths(video_path);
         
-        Ok(TranscriptionResult::new(
-            "Mock video transcription".to_string(),
-            Some("en".to_string()),
-            vec![],
-            processing_time,
-            self.config.model().to_string(),
-        )
-        .with_text_path(text_path)
-        .with_srt_path(srt_path))
+        Ok(result
+            .with_text_path(text_path)
+            .with_srt_path(srt_path))
+    }
+    
+    /// Add model arguments to whisper-cli command
+    fn add_model_args(&self, cmd: &mut tokio::process::Command) -> Result<()> {
+        let model_paths = [
+            &format!("models/ggml-{}.bin", self.config.model()),
+            "models/ggml-tiny.bin", // Fallback to tiny model
+            "models/ggml-base.bin", // Fallback to base model
+            "/usr/local/share/whisper-cpp/ggml-base.bin",
+            "/opt/homebrew/share/whisper-cpp/ggml-base.bin", 
+            &format!("/usr/local/share/whisper-cpp/ggml-{}.bin", self.config.model()),
+            &format!("/opt/homebrew/share/whisper-cpp/ggml-{}.bin", self.config.model()),
+            "/usr/local/Cellar/whisper-cpp/1.7.5/share/whisper-cpp/for-tests-ggml-tiny.bin",
+        ];
+        
+        tracing::info!("🔍 Looking for Whisper model files...");
+        let mut model_found = false;
+        for model_path in &model_paths {
+            tracing::debug!("🔍 Checking: {}", model_path);
+            if std::path::Path::new(model_path).exists() {
+                let metadata = std::fs::metadata(model_path).unwrap_or_else(|_| std::fs::metadata(".").unwrap());
+                tracing::info!("✅ Found model: {} ({:.1} MB)", model_path, metadata.len() as f64 / 1_000_000.0);
+                cmd.args(["-m", model_path]);
+                model_found = true;
+                break;
+            } else {
+                tracing::debug!("❌ Not found: {}", model_path);
+            }
+        }
+        
+        if !model_found {
+            tracing::warn!("⚠️  No model found, using default");
+        }
+        
+        Ok(())
     }
 }

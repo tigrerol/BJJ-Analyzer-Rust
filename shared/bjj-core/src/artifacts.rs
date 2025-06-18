@@ -88,7 +88,7 @@ impl ArtifactDetector {
         
         let mut video_files = Vec::new();
         
-        for entry in WalkDir::new(directory).min_depth(1).max_depth(1) {
+        for entry in WalkDir::new(directory).min_depth(1) {
             let entry = entry.map_err(|e| BJJCoreError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
             let path = entry.path();
             

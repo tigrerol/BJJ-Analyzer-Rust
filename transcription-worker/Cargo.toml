@@ -5,5 +5,27 @@ edition = "2021"
 authors = ["TigreRoll"]
 description = "High-performance transcription worker for BJJ videos"
 
+[[bin]]
+name = "bjj-transcription-worker"
+path = "src/main.rs"
+
 [dependencies]
-# Will be implemented later
+# Workspace shared crates
+bjj-core = { path = "../shared/bjj-core" }
+bjj-transcription = { path = "../shared/bjj-transcription" }
+bjj-llm = { path = "../shared/bjj-llm" }
+
+# Workspace dependencies
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+chrono = { workspace = true }
+
+[dev-dependencies]
+tokio-test = { workspace = true }
+tempfile = { workspace = true }
