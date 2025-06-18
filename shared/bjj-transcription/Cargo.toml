@@ -1,0 +1,22 @@
+[package]
+name = "bjj-transcription"
+version = "0.1.0"
+edition = "2021"
+authors = ["TigreRoll"]
+description = "BJJ video transcription logic and Whisper integration"
+
+[dependencies]
+# Use workspace dependencies
+bjj-core = { path = "../bjj-core" }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+reqwest = { workspace = true, features = ["json", "stream", "multipart"] }
+tracing = { workspace = true }
+chrono = { workspace = true }
+
+[dev-dependencies]
+tokio-test = { workspace = true }
+tempfile = { workspace = true }

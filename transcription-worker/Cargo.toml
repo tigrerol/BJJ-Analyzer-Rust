@@ -1,0 +1,9 @@
+[package]
+name = "transcription-worker"
+version = "0.1.0"
+edition = "2021"
+authors = ["TigreRoll"]
+description = "High-performance transcription worker for BJJ videos"
+
+[dependencies]
+# Will be implemented later

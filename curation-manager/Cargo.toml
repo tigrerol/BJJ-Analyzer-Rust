@@ -1,0 +1,9 @@
+[package]
+name = "curation-manager"
+version = "0.1.0"
+edition = "2021"
+authors = ["TigreRoll"]
+description = "BJJ video curation and content generation manager"
+
+[dependencies]
+# Will be implemented later

@@ -1,0 +1,1 @@
+//! Curation manager - placeholder

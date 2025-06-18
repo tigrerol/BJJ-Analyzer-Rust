@@ -1,0 +1,9 @@
+[package]
+name = "bjj-llm"
+version = "0.1.0"
+edition = "2021"
+authors = ["TigreRoll"]
+description = "BJJ LLM integrations and content generation"
+
+[dependencies]
+# Will be implemented later

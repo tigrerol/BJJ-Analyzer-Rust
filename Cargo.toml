@@ -1,12 +1,16 @@
-[package]
-name = "bjj-analyzer-rust"
-version = "0.1.0"
-edition = "2021"
-authors = ["TigreRoll"]
-description = "High-performance BJJ Video Analyzer written in Rust"
-license = "MIT"
+[workspace]
+resolver = "2"
+members = [
+    "transcription-worker",
+    "curation-manager", 
+    "shared/bjj-core",
+    "shared/bjj-transcription",
+    "shared/bjj-llm",
+    "shared/bjj-config"
+]
 
-[dependencies]
+# Shared dependencies across all workspace members
+[workspace.dependencies]
 # Async runtime
 tokio = { version = "1.40", features = ["full"] }
 futures = "0.3"
@@ -17,7 +21,7 @@ reqwest = { version = "0.12", features = ["json", "stream", "multipart"] }
 
 # Web scraping
 scraper = "0.20"
-url = "2.5"
+url = "2.5" 
 regex = "1.10"
 urlencoding = "2.1"
 
@@ -51,66 +55,17 @@ md5 = "0.7"
 # CPU count detection
 num_cpus = "1.16"
 
-# Optional: Python bindings
-pyo3 = { version = "0.22", features = ["auto-initialize"], optional = true }
+# Optional: Python bindings  
+pyo3 = { version = "0.22", features = ["auto-initialize"] }
 
 # Optional: Web API dependencies
-axum = { version = "0.7", features = ["ws"], optional = true }
-tower = { version = "0.4", optional = true }
-tower-http = { version = "0.5", features = ["fs", "trace", "cors"], optional = true }
+axum = { version = "0.7", features = ["ws"] }
+tower = { version = "0.4" }
+tower-http = { version = "0.5", features = ["fs", "trace", "cors"] }
 
 # Development dependencies
-[dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
 tokio-test = "0.4"
-
-# Features
-[features]
-default = []
-python-bindings = ["pyo3"]
-api = ["axum", "tower", "tower-http"]
-
-# Binary executables
-[[bin]]
-name = "bjj-analyzer"
-path = "src/main.rs"
-
-[[bin]]
-name = "check-transcription"
-path = "src/bin/check_transcription.rs"
-
-[[bin]]
-name = "quick-bench"
-path = "src/bin/quick_bench.rs"
-
-[[bin]]
-name = "test-llm"
-path = "src/bin/test_llm.rs"
-
-[[bin]]
-name = "test-file-writing"
-path = "test_file_writing.rs"
-
-[[bin]]
-name = "test-filename-parsing"
-path = "test_filename_parsing.rs"
-
-[[bin]]
-name = "test-search-flow"
-path = "test_search_flow.rs"
-
-[[bin]]
-name = "cache-manager"
-path = "src/bin/cache_manager.rs"
-
-[[bin]]
-name = "test-api"
-path = "test_api.rs"
-
-
-
-
-
 
 [profile.release]
 opt-level = 3
